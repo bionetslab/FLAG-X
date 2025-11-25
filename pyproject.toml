@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flagx"
+version = "0.1.0"
+description = "FLow cytometry Automated Gating toolboX"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+
+authors = [
+    { name="Paul Martini", email="paul.martini@fau.de" }
+]
+
+license = { text = "GNU General Public License v3 (GPLv3)" }
+
+urls = { Homepage = "https://github.com/bionetslab/FLAG-X" }
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: POSIX :: Linux",
+]
+
+# dependencies = []
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.dependencies]
+python = "*"
+numpy = "*"
+pandas = "*"
+matplotlib = "*"
+scikit-learn = "*"
+numba = "*"
+umap-learn = "*"
+anndata = "*"
+scanpy = "*"
+igraph = "*"
+leidenalg = "*"
+fcsparser = "*"
+readfcs = "*"
+pytometry = "*"
+tqdm = "*"
+requests = "*"
+somoclu= "*"
+
+[tool.pixi.pypi-dependencies]
+torch = {version = ">=2.0", index="https://download.pytorch.org/whl/cpu"}
+flowio = "*"
+flowutils = "*"
+flagx = { path = ".", editable = true }
