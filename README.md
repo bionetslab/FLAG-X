@@ -1,6 +1,10 @@
 # FLow cytometry Automated Gating - toolboX (FLAG-X)
 
 
+## To do
+- [ ] Add functionality to apply compensation
+- [ ] Add functionality to load lmd files
+
 
 ## License
 
