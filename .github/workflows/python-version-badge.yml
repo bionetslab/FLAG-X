@@ -11,25 +11,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-    - name: Extract python version from pyproject.toml
-      id: pyvers
-      run: |
-        PY_VERSION=$(grep -E 'requires-python' pyproject.toml | sed 's/.*= *"//;s/"//')
-        echo "version=$PY_VERSION" >> $GITHUB_OUTPUT
+      - name: Extract python version
+        id: pyvers
+        run: |
+          PY_VERSION=$(grep -E 'requires-python' pyproject.toml | sed 's/.*= *"//;s/"//')
+          echo "version=$PY_VERSION" >> $GITHUB_OUTPUT
 
-    - name: Generate badge
-      run: |
-        VERSION="${{ steps.pyvers.outputs.version }}"
+      - name: Generate badge
+        run: |
+          VERSION="${{ steps.pyvers.outputs.version }}"
+          SAFE_VERSION=$(echo "$VERSION" | sed 's/</\&lt;/g')
 
-        # Escape < to avoid invalid XML
-        SAFE_VERSION=$(echo "$VERSION" | sed 's/</\&lt;/g')
+          mkdir -p badges
 
-        mkdir -p badges
-
-        cat > badges/python-version.svg <<EOF
+          cat > badges/python-version.svg << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" width="200" height="20">
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".2"/>
@@ -42,13 +40,15 @@ jobs:
   <g fill="#fff" text-anchor="middle"
      font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
     <text x="40" y="14">python</text>
-    <text x="140" y="14">$SAFE_VERSION</text>
+    <text x="140" y="14">__VERSION_PLACEHOLDER__</text>
   </g>
 </svg>
 EOF
 
-    - name: Commit badge
-      uses: stefanzweifel/git-auto-commit-action@v5
-      with:
-        commit_message: "Update Python version badge"
-        file_pattern: "badges/python-version.svg"
+          sed -i "s|__VERSION_PLACEHOLDER__|$SAFE_VERSION|" badges/python-version.svg
+
+      - name: Commit badge
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update Python version badge"
+          file_pattern: "badges/python-version.svg"
