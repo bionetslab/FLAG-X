@@ -1,3 +1,6 @@
+
+![Python version](./badges/python-version.svg)
+
 # FLow cytometry Automated Gating - toolboX (FLAG-X)
 
 
