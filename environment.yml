@@ -25,7 +25,7 @@ dependencies:
   - pip
 
   - pip:
-      - torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu
+      - torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
       - flowio
       - flowutils
 

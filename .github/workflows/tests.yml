@@ -64,7 +64,7 @@ jobs:
 
       # -------------------- Ensure badges folder exists --------------------
       - name: Ensure badges directory exists
-        run: mkdir -p badges
+        run: mkdir -p ${{ github.workspace }}/badges
 
       # -------------------- Badges --------------------
       - name: Generate passing test badge
@@ -74,7 +74,7 @@ jobs:
           label: "tests"
           status: "passing"
           color: "green"
-          path: "badges/test-status.svg"
+          path: "${{ github.workspace }}/badges/test-status.svg"
 
       - name: Generate failing test badge
         uses: emibcn/badge-action@v1.2.1
@@ -83,7 +83,7 @@ jobs:
           label: "tests"
           status: "failing"
           color: "red"
-          path: "badges/test-status.svg"
+          path: "${{ github.workspace }}/badges/test-status.svg"
 
       - name: Extract coverage percentage
         id: coverage
@@ -98,7 +98,7 @@ jobs:
           label: "coverage"
           status: "${{ steps.coverage.outputs.percent }}%"
           color: "blue"
-          path: "badges/coverage.svg"
+          path: "${{ github.workspace }}/badges/coverage.svg"
 
       - name: Commit badges
         uses: stefanzweifel/git-auto-commit-action@v5
