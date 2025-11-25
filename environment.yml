@@ -1,0 +1,31 @@
+name: flagx
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  - python>=3.10,<3.14
+  - numpy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - numba
+  - umap-learn
+  - anndata
+  - scanpy
+  - igraph
+  - leidenalg
+  - fcsparser
+  - readfcs
+  - pytometry
+  - tqdm
+  - requests
+  - somoclu
+  - pip
+
+  - pip:
+      - torch>=2.0 --index-url https://download.pytorch.org/whl/cpu
+      - flowio
+      - flowutils
+
