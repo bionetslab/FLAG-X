@@ -141,7 +141,9 @@ def test_align_channel_names(fdm):
 def test_preprocessing(fdm, flavour):
     fdm.load_data_files_to_anndata()
 
-    if flavour == 'log10_w_cutoff':
+    if flavour == 'arcsinh':
+        fdm.sample_wise_preprocessing(flavour=flavour, save_raw_to_layer='raw', cofactor=150)
+    elif flavour == 'log10_w_cutoff':
         fdm.sample_wise_preprocessing(flavour=flavour, save_raw_to_layer='raw', cutoff=100)
     elif flavour == 'log10_w_custom_cutoffs':
         cutoffs = {channel: i * 10 for i, channel in enumerate(EXPECTED_CHANNELS[:-2])}
