@@ -1,0 +1,74 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}  # required for conda
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: test-env
+          environment-file: environment.yml
+          auto-update-conda: false
+          python-version: "3.12"
+          miniforge-version: latest
+
+      - name: Install test dependencies
+        run: |
+          conda install pytest pytest-cov -y
+
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=. --cov-report=xml --cov-report=term
+
+      # ---------- Badges ----------
+      - name: Generate passing test badge
+        uses: emibcn/badge-action@v1.2.1
+        if: ${{ success() }}
+        with:
+          label: "tests"
+          status: "passing"
+          color: "green"
+          path: "badges/test-status.svg"
+
+      - name: Generate failing test badge
+        uses: emibcn/badge-action@v1.2.1
+        if: ${{ failure() }}
+        with:
+          label: "tests"
+          status: "failing"
+          color: "red"
+          path: "badges/test-status.svg"
+
+      - name: Extract coverage percentage
+        id: coverage
+        run: |
+          value=$(xmllint --xpath "string(/coverage/@line-rate)" coverage.xml)
+          percent=$(printf "%.0f" "$(echo "$value * 100" | bc)")
+          echo "percent=$percent" >> $GITHUB_OUTPUT
+
+      - name: Generate coverage badge
+        uses: emibcn/badge-action@v1.2.1
+        with:
+          label: "coverage"
+          status: "${{ steps.coverage.outputs.percent }}%"
+          color: "blue"
+          path: "badges/coverage.svg"
+
+      - name: Commit badges
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update test & coverage badges"
+          file_pattern: "badges/*.svg"
