@@ -1,5 +1,6 @@
 
-![Python version](./badges/python-version.svg)
+![Python Version](https://img.shields.io/badge/python-%3E%3D3.10%20%3C3.14-blue?logo=python)
+
 
 # FLow cytometry Automated Gating - toolboX (FLAG-X)
 
