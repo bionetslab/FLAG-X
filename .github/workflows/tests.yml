@@ -50,6 +50,12 @@ jobs:
           conda install pytest pytest-cov -y
           micromamba clean --all --yes
 
+      # -------------------- Install flagx --------------------
+      - name: Install FLAG-X package
+        run: |
+          micromamba activate test-env
+          pip install -e .
+
       # -------------------- Run Tests --------------------
       - name: Run tests with coverage
         run: |
