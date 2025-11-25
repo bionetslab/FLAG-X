@@ -10,30 +10,53 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        shell: bash -l {0}  # required for conda
+        shell: bash -l {0}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Miniconda
-        uses: conda-incubator/setup-miniconda@v3
+      # -------------------- Micromamba setup --------------------
+      # This replaces Miniconda but uses your SAME environment.yml
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v1
         with:
-          activate-environment: test-env
           environment-file: environment.yml
-          auto-update-conda: false
-          python-version: "3.12"
-          miniforge-version: latest
+          environment-name: test-env
+          cache-environment: true
+          init-shell: bash
+          condarc: |
+            channels:
+              - conda-forge
+            channel_priority: strict
 
+      # Ensure environment is active
+      - name: Activate micromamba environment
+        run: |
+          micromamba activate test-env
+          echo "Environment activated"
+
+      # -------------------- Space cleanup --------------------
+      - name: Clean conda/mamba/pip caches
+        run: |
+          micromamba activate test-env
+          micromamba clean --all --yes
+          pip cache purge || true
+
+      # -------------------- Test dependencies --------------------
       - name: Install test dependencies
         run: |
+          micromamba activate test-env
           conda install pytest pytest-cov -y
+          micromamba clean --all --yes
 
+      # -------------------- Run Tests --------------------
       - name: Run tests with coverage
         run: |
+          micromamba activate test-env
           pytest --cov=. --cov-report=xml --cov-report=term
 
-      # ---------- Badges ----------
+      # -------------------- Badges --------------------
       - name: Generate passing test badge
         uses: emibcn/badge-action@v1.2.1
         if: ${{ success() }}
