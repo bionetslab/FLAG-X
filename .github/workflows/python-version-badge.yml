@@ -27,25 +27,22 @@ jobs:
 
           mkdir -p badges
 
-          cat > badges/python-version.svg << 'EOF'
-<svg xmlns="http://www.w3.org/2000/svg" width="200" height="20">
-  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="100%">
-    <stop offset="0" stop-color="#bbb" stop-opacity=".2"/>
-    <stop offset="1" stop-opacity=".1"/>
-  </linearGradient>
-  <rect rx="3" width="200" height="20" fill="#555"/>
-  <rect rx="3" x="80" width="120" height="20" fill="blue"/>
-  <path fill="blue" d="M80 0h4v20h-4z"/>
-  <rect rx="3" width="200" height="20" fill="url(#bg)"/>
-  <g fill="#fff" text-anchor="middle"
-     font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
-    <text x="40" y="14">python</text>
-    <text x="140" y="14">__VERSION_PLACEHOLDER__</text>
-  </g>
-</svg>
-EOF
-
-          sed -i "s|__VERSION_PLACEHOLDER__|$SAFE_VERSION|" badges/python-version.svg
+          printf '%s\n' \
+'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="20">' \
+'  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="100%">' \
+'    <stop offset="0" stop-color="#bbb" stop-opacity=".2"/>' \
+'    <stop offset="1" stop-opacity=".1"/>' \
+'  </linearGradient>' \
+'  <rect rx="3" width="200" height="20" fill="#555"/>' \
+'  <rect rx="3" x="80" width="120" height="20" fill="blue"/>' \
+'  <path fill="blue" d="M80 0h4v20h-4z"/>' \
+'  <rect rx="3" width="200" height="20" fill="url(#bg)"/>' \
+'  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">' \
+'    <text x="40" y="14">python</text>' \
+"    <text x=\"140\" y=\"14\">$SAFE_VERSION</text>" \
+'  </g>' \
+'</svg>' \
+> badges/python-version.svg
 
       - name: Commit badge
         uses: stefanzweifel/git-auto-commit-action@v5
