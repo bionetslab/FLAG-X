@@ -1,4 +1,4 @@
-name: flagx
+name: flagx_github_tests
 channels:
   - conda-forge
   - bioconda
@@ -23,6 +23,7 @@ dependencies:
   - requests
   - somoclu
   - pytorch-cpu
+  - click
   - pip
 
   - pip:

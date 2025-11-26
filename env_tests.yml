@@ -1,4 +1,4 @@
-name: flagx
+name: flagx_tests
 channels:
   - conda-forge
   - bioconda
@@ -23,6 +23,8 @@ dependencies:
   - requests
   - somoclu
   - click
+  - pytest
+  - pytest-cov
   - pip
 
   - pip:
