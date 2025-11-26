@@ -20,7 +20,7 @@ jobs:
       - name: Set up micromamba
         uses: mamba-org/setup-micromamba@v1
         with:
-          environment-file: environment.yml
+          environment-file: env_github_tests.yml
           environment-name: test-env
           cache-environment: true
           init-shell: bash
@@ -80,7 +80,7 @@ jobs:
         with:
           label: "coverage"
           status: "${{ steps.coverage.outputs.percent }}%"
-          color: "blue"
+          color: "brightgreen"
           path: "badges/coverage.svg"
 
       - name: Commit badges
