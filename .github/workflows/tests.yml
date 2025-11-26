@@ -80,7 +80,7 @@ jobs:
         with:
           label: "coverage"
           status: "${{ steps.coverage.outputs.percent }}%"
-          color: "brightgreen"
+          color: "green"
           path: "badges/coverage.svg"
 
       - name: Commit badges
