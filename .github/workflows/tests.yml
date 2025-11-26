@@ -56,15 +56,15 @@ jobs:
           micromamba activate test-env
           pip install -e .
 
+      # -------------------- Ensure badges folder exists --------------------
+      - name: Ensure badges directory exists
+        run: mkdir -p ${{ github.workspace }}/badges
+
       # -------------------- Run Tests --------------------
       - name: Run tests with coverage
         run: |
           micromamba activate test-env
           pytest --cov=. --cov-report=xml --cov-report=term
-
-      # -------------------- Ensure badges folder exists --------------------
-      - name: Ensure badges directory exists
-        run: mkdir -p ${{ github.workspace }}/badges
 
       # -------------------- Badges --------------------
       - name: Generate passing test badge
