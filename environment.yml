@@ -1,13 +1,11 @@
 name: flagx
 channels:
-  - pytorch  # todo
   - conda-forge
   - bioconda
   - defaults
 
 dependencies:
-  # - python>=3.10,<3.14
-  - python=3.12
+  - python=3.10
   - numpy
   - pandas
   - matplotlib
@@ -24,12 +22,10 @@ dependencies:
   - tqdm
   - requests
   - somoclu
-  - pytorch=2.2.2  # todo
+  - pytorch-cpu
   - pip
 
   - pip:
-      # - torch==2.2.2 --index-url https://download.pytorch.org/whl/cpu
-      # - torch --index-url https://download.pytorch.org/whl/cpu
       - flowio
       - flowutils
 
