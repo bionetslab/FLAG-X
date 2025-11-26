@@ -25,6 +25,9 @@ classifiers = [
 
 # dependencies = []
 
+[project.scripts]
+flagx = "flagx.cli:cli"
+
 [tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["linux-64"]
@@ -47,6 +50,7 @@ pytometry = "*"
 tqdm = "*"
 requests = "*"
 somoclu= "*"
+click="*"
 
 [tool.pixi.pypi-dependencies]
 torch = {version = ">=2.0", index="https://download.pytorch.org/whl/cpu"}
