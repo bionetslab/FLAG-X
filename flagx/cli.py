@@ -125,7 +125,7 @@ def load_infer_save(config):
     gp.inference(**cfg)
 
     click.secho(
-        f'# --- Inference complete. Results saved to {cfg['save_path']} --- #',
+        f'# --- Inference complete. Results saved to {cfg["save_path"]} --- #',
         fg='green'
     )
 
