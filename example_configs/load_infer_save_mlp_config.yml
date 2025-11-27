@@ -1,0 +1,29 @@
+
+# flagx load-infer-save --config ./configs/load_infer_save_mlp_config.yml
+
+# Where to load trained pipeline from
+load_dir_pipeline: "./results/test_cli/mlp"
+filename_pipeline: "gating_pipeline_mlp_trained.pkl"
+
+# Where to load data from
+data_file_path: "./tests/test_data"
+data_file_names:
+  - "Case1.csv"
+  - "Case2.csv"
+  - "Case3.csv"
+
+# Where to save annotated data to
+save_dir_inference: "./results/test_cli/mlp/inference"
+filename_inference: "annotated_test_data.fcs"
+
+# Parameters of the pipeline's inference() function
+sample_wise: false  # Save into single file, add sample id column
+gate: true
+dim_red_methods: ["pca", ]  # Computed on all files jointly
+
+scale_channels:
+  - population
+  - Time
+val_range: [0.0, 1048576.0]
+keep_unscaled: true
+
