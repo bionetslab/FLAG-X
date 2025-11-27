@@ -1,6 +1,6 @@
 
-FLAG-X API Reference
-====================
+FLAG-X API
+==========
 
 .. toctree::
    :maxdepth: 2
