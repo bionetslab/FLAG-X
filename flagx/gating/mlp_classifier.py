@@ -18,12 +18,11 @@ from .fcnn_model import FCNNModel
 
 class MLPClassifier(BaseEstimator, ClassifierMixin):
     """
-    A three layer perceptron (MLP) classifier compatible with scikit-learn.
+    A three layer perceptron (MLP) classifier.
 
-    This classifier wraps a fully connected neural network implemented in PyTorch
-    while exposing a scikit-learn–style API.
-    The model supports multi-class classification, automatic device selection
-    (CPU/GPU), and provides the methods fit(), predict(), predict_proba(), score(), save(), and load().
+    This classifier wraps a fully connected neural network implemented in PyTorch while exposing a scikit-learn–style API.
+    The model supports multi-class classification, automatic device selection (CPU or GPU),
+    and provides the methods ``fit()``, ``predict()``, ``predict_proba()``, ``score()``, ``save()``, and ``load()``.
 
     Attributes:
         layer_sizes (Tuple[int, int, int]): Sizes of the hidden layers in the fully connected neural network.
@@ -54,8 +53,6 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             verbosity: int = 1,
     ):
         """
-        Initializes the MLPClassifier.
-
         Args:
             layer_sizes (Tuple[int, int, int]): Sizes of the hidden layers in the fully connected neural network.
             n_epochs (int): Number of training epochs.
@@ -99,8 +96,8 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         Fit the MLP classifier to the provided training data.
 
         Args:
-            X (np.ndarray): Feature matrix of shape (n_samples, n_features).
-            y (np.ndarray): Target labels of shape (n_samples,).
+            X (np.ndarray): Feature matrix of shape `(n_samples, n_features)`.
+            y (np.ndarray): Target labels of shape `(n_samples,)`.
 
         Returns:
             Self: The fitted classifier instance.
@@ -162,13 +159,13 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         Predict class labels for the given input samples.
 
         Args:
-            X (np.ndarray): Feature matrix of shape (n_samples, n_features).
+            X (np.ndarray): Feature matrix of shape `(n_samples, n_features)`.
 
         Returns:
             np.ndarray: Predicted class labels using the original label encoding.
 
         Raises:
-           NotFittedError: If `predict()` is used before calling `fit()`.
+           NotFittedError: If ``predict()`` is used before calling ``fit()``.
         """
 
         # Get softmax prediction
@@ -190,13 +187,13 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
        Predict class probabilities for the given samples.
 
        Args:
-           X (np.ndarray): Feature matrix of shape (n_samples, n_features).
+           X (np.ndarray): Feature matrix of shape `(n_samples, n_features)`.
 
        Returns:
-           np.ndarray: Array of shape (n_samples, n_classes) containing class probabilities.
+           np.ndarray: Array of shape `(n_samples, n_classes)` containing class probabilities.
 
        Raises:
-           NotFittedError: If `predict()` is used before calling `fit()`.
+           NotFittedError: If ``predict()`` is used before calling ``fit()``.
        """
 
         # Check whether fit was already called
@@ -226,7 +223,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         Compute the macro F1 score of the classifier on the given dataset.
 
         Args:
-            X (np.ndarray): Feature matrix of shape (n_samples, n_features).
+            X (np.ndarray): Feature matrix of shape `(n_samples, n_features)`.
             y (np.ndarray): True labels.
             sample_weight (np.ndarray or None): Optional sample weights.
 
@@ -234,7 +231,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             float: Macro-averaged F1 score.
 
         Raises:
-           NotFittedError: If `score()` is used before calling `fit()`.
+           NotFittedError: If ``score()`` is used before calling ``fit()``.
         """
 
         y_pred = self.predict(X)
@@ -323,7 +320,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             filepath: Union[str, None] = None,
     ) -> None:
         """
-        Save the fitted classifier to disk using `torch.save`.
+        Save the fitted classifier to disk using ``torch.save``.
 
         Args:
             filename (str): Name of the file to save the model to.
@@ -351,7 +348,7 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         Args:
             filename (str): Name of the saved file.
             filepath (str or None): Directory containing the saved file. Defaults to current working directory.
-            map_location (str or torch.device): Device mapping for loading the model (e.g., 'cpu' or 'cuda').
+            map_location (str or torch.device): Device mapping for loading the model (e.g., ``'cpu'`` or ``'cuda'``).
 
         Returns:
             Self: The loaded classifier instance.

@@ -7,17 +7,17 @@ from typing import Union, Sequence, Tuple
 
 class FlowDataLoaders:
     """
-    Wrapper providing two PyTorch dataloaders for a given `Dataset`:
+    Wrapper providing two PyTorch dataloaders for a given ``Dataset``:
 
-    - `pytorch_dataloader`: standard PyTorch dataloader using default collation.
-    - `pytorch_np_dataloader`: PyTorch dataloader that returns NumPy arrays instead of tensors via a custom `np_collate` function.
+    - ``pytorch_dataloader``: standard PyTorch dataloader using default collation.
+    - ``pytorch_np_dataloader``: PyTorch dataloader that returns NumPy arrays instead of tensors via a custom ``np_collate`` function.
 
     This class exists to conveniently switch between tensor-based and NumPy-based dataloading pipelines without modifying the underlying dataset or training code.
 
     Attributes:
         dataset (Dataset): The dataset from which batches are generated.
         pytorch_dataloader (DataLoader): Standard PyTorch dataloader using default tensor collation.
-        pytorch_np_dataloader (DataLoader): Dataloader returning NumPy arrays through a custom `np_collate` function.
+        pytorch_np_dataloader (DataLoader): Dataloader returning NumPy arrays through a custom ``np_collate`` function.
     """
     def __init__(
             self,
@@ -25,11 +25,9 @@ class FlowDataLoaders:
             **kwargs
     ):
         """
-        Initialize dataloaders for the provided dataset.
-
         Args:
-            dataset (Dataset): Any PyTorch-compatible dataset instance producing samples or (sample, label) pairs.
-            **kwargs: Additional arguments forwarded directly to `torch.utils.data.DataLoader`, such as `batch_size`, `shuffle`, or `num_workers`.
+            dataset (Dataset): Any PyTorch-compatible dataset instance producing samples or sample-label pairs.
+            **kwargs: Additional arguments forwarded directly to ``torch.utils.data.DataLoader``, such as ``batch_size``, ``shuffle``, or ``num_workers``.
         """
         self.dataset = dataset
         self.pytorch_dataloader = DataLoader(dataset, **kwargs)

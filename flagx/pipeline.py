@@ -30,6 +30,7 @@ class GatingPipeline:
     4. **(Optional) Preprocess data sample-wise**
     5. **(Optional) Downsample data**
     6. **Train the gating module**
+
        - supervised: MLP classifier
        - supervised or unsupervised: SOM classifier
     7. **Inference on new samples**
@@ -38,18 +39,21 @@ class GatingPipeline:
 
     Attributes:
         train_data_file_path (str or None): Path to directory containing training data. Defaults to CWD.
-        train_data_file_names (list[str] or None): Specific training filenames to load. If None, uses all files in directory.
-        train_data_file_type (Literal['fcs','csv'] or None): Input file type. If None, inferred from first filename.
-        save_path (str or None): Output directory for pipeline metadata and results. If None, defaults to CWD.
+        train_data_file_names (list[str] or None): Specific training filenames to load. If ``None``, uses all files in directory.
+        train_data_file_type (Literal['fcs','csv'] or None): Input file type. If ``None``, inferred from first filename.
+        save_path (str or None): Output directory for pipeline metadata and results. If ``None``, defaults to CWD.
         channels (list[int] or list[str] or None): Indices or names of channels to train on.
-        label_key (int, str, or None): Key to labels in `.X`, `.obs`, or `.layers`. If None, only unsupervised SOM training is available.
-        channel_names_alignment_kwargs (dict or None): Arguments forwarded to channel alignment.
-        relabel_data_kwargs (dict or None): Mapping for relabeling training data.
-        preprocessing_kwargs (dict or None): Sample-wise preprocessing configuration.
-        downsampling_kwargs (dict or None): Sample-wise downsampling configuration.
+        label_key (int, str, or None): Key to labels. Can be column index in ``.X``, channel name (key in ``var_names``), or key to ``.obs``. If None, only unsupervised SOM training is available.
+        channel_names_alignment_kwargs (dict or None): Arguments forwarded to channel alignment. See ``FlowDataManager.align_channel_names()``.
+        relabel_data_kwargs (dict or None): Mapping for relabeling training data. See ``FlowDataManager.relabel_data()``.
+        preprocessing_kwargs (dict or None): Sample-wise preprocessing configuration. See ``FlowDataManager.sample_wise_preprocessing()``.
+        downsampling_kwargs (dict or None): Sample-wise downsampling configuration. See ``FlowDataManager.sample_wise_downsampling()``.
         gating_method (Literal['som','mlp']): Which model to train.
         gating_method_kwargs (dict or None): Additional arguments for SOM or MLP.
-        prediction_threshold (float or None): Binary/abstention threshold; defaults chosen automatically.
+        prediction_threshold (float or None):
+
+            - Binary case: Prediction threshold. Defaults to 0.5.
+            - Multiclass case: If prediction certainty below threshold classifier abstains from making prediction. Event is marked with -1. Defaults to 0.0, i.e. no abstention.
         verbosity (int): Logging level.
         is_trained_ (bool): Whether the pipeline has been successfully trained.
         gating_module_ (SomClassifier or MLPClassifier or None): The fitted gating model.
@@ -84,8 +88,6 @@ class GatingPipeline:
             verbosity: int = 1,
     ):
         """
-        Initialize the full gating pipeline and configure optional steps.
-
         Args:
             train_data_file_path (str or None): Path to directory containing training data. Defaults to CWD.
             train_data_file_names (list[str] or None): Specific training filenames to load. If None, uses all files in directory.
@@ -160,6 +162,7 @@ class GatingPipeline:
         Train the full gating pipeline.
 
         This executes the full training workflow:
+
         - Load raw data
         - (Optional) Align channel names
         - (Optional) Relabel and preprocess
@@ -167,11 +170,11 @@ class GatingPipeline:
         - Construct training matrix from all samples
         - Train SOM or MLP gating module
 
-        The gating module is stored in `self.gating_module_`.
+        The gating module is stored in ``self.gating_module_``.
 
         Raises:
-            ValueError: If MLP is selected but `label_key` is None.
-            ValueError: If binary labels are not exactly {0, 1}.
+            ValueError: If MLP is selected but ``label_key`` is None.
+            ValueError: If binary labels are not exactly ``{0, 1}``.
         """
 
         # Get the train data from the raw data
