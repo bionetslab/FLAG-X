@@ -26,6 +26,7 @@ From source using **conda** or **mamba**:
 git clone git@github.com:bionetslab/FLAG-X.git
 cd FLAG-X
 mamba env create -f environment.yml
+mamba activate flagx
 pip install -e .
 ```
 
@@ -38,6 +39,25 @@ pixi install
 
 **NOTE:** The environments provided in this project install the CPU-only version of PyTorch. 
 Users who require GPU acceleration must install a CUDA-enabled PyTorch build themselves following the instructions at [PyTorch get started](https://pytorch.org/get-started/locally/).
+
+## Documentation
+Full documentation is available on [Read The Docs](https://TODO[Add link]).
+
+## CLI usage example
+- Install `flagx`, see [Installation](#installation).
+- Create a *config.yml* for GatingPipeline initialization and model training according to `flagx.GatingPipeline`'s signature. 
+  For examples see [init_train_save_som_config.yml](./example_configs/init_train_save_som_config.yml) and [init_train_save_mlp_config.yml](./example_configs/init_train_save_mlp_config.yml).
+- Initialize the GatingPipeline, train, and save:
+  ```console
+  flagx init-train-save --config ./example_configs/init_train_save_som_config.yml
+  ```
+- Create a *config.yml* to load a trained pipeline, perform automated gating, compute dimensionality reductions, 
+  and export results to FCS according to `flagx.GatingPipeline.inference()`'s signature. 
+  For examples see [load_infer_save_som_config.yml](./example_configs/load_infer_save_som_config.yml) and [load_infer_save_mlp_config.yml](./example_configs/load_infer_save_mlp_config.yml).
+- Load trained GatingPipeline and run inference on new data:
+  ```console
+  flagx load-infer-save --config ./example_configs/load_infer_save_som_config.yml
+  ```
 
 
 ## To do
