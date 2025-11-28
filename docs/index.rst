@@ -66,9 +66,9 @@ The environments provided in this project install the CPU-only version of PyTorc
 Users who require GPU acceleration must install a CUDA-enabled PyTorch build themselves by following the instructions at `PyTorch get started <https://pytorch.org/get-started/locally/>`_.
 
 
-CLI usage example
+Usage examples
 -----------------
-For a usage example please refer to `GitHub <https://github.com/bionetslab/FLAG-X>`_.
+For usage examples please refer to `GitHub <https://github.com/bionetslab/FLAG-X>`_.
 
 
 License
