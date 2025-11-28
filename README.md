@@ -41,7 +41,7 @@ pixi install
 Users who require GPU acceleration must install a CUDA-enabled PyTorch build themselves following the instructions at [PyTorch get started](https://pytorch.org/get-started/locally/).
 
 ## Documentation
-Full documentation is available on [Read The Docs](https://TODO[Add link]).
+Full documentation is available on [Read the Docs](https://flag-x.readthedocs.io/en/latest/).
 
 ## CLI usage example
 - Install `flagx`, see [Installation](#installation).
