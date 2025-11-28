@@ -36,19 +36,29 @@ html_theme = "sphinx_rtd_theme"
 napoleon_google_docstring = True
 
 autodoc_mock_imports = [
-    "torch",
-    "scanpy",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "scikit-learn",
+    "numba",
+    "umap-learn",
+    "umap",
     "anndata",
+    "scanpy",
     "igraph",
     "leidenalg",
-    "umap",
-    "umap-learn",
-    "numba",
-    "pytometry",
-    "somoclu",
     "fcsparser",
     "readfcs",
+    "pytometry",
+    "tqdm",
+    "requests",
+    "somoclu",
+    "click",
+    "torch",
+    "flowio",
+    "flowutils",
+    "typing_extensions",
     "sklearn",
+    "scipy",
 ]
-
 

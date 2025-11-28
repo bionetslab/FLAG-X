@@ -1,28 +1,27 @@
 name: flagx_doc
 channels:
   - conda-forge
-  - bioconda
   - defaults
 
 dependencies:
   - python=3.11
-  - numpy
-  - pandas
-  - matplotlib
-  - scikit-learn
-  - numba
-  - umap-learn
-  - anndata
-  - scanpy
-  - igraph
-  - leidenalg
-  - fcsparser
-  - readfcs
-  - pytometry
-  - tqdm
-  - requests
-  - somoclu
-  - click
+#  - numpy
+#  - pandas
+#  - matplotlib
+#  - scikit-learn
+#  - numba
+#  - umap-learn
+#  - anndata
+#  - scanpy
+#  - igraph
+#  - leidenalg
+#  - fcsparser
+#  - readfcs
+#  - pytometry
+#  - tqdm
+#  - requests
+#  - somoclu
+#  - click
   - pip
 
   # --- Sphinx ---
@@ -31,7 +30,12 @@ dependencies:
   - sphinx-autodoc-typehints
 
   - pip:
-      - torch --index-url https://download.pytorch.org/whl/cpu
-      - flowio
-      - flowutils
+      - -e .
+
+#  - pip:
+#      - torch --index-url https://download.pytorch.org/whl/cpu
+#      - flowio
+#      - flowutils
+
+
 
