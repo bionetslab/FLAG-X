@@ -23,6 +23,7 @@ dependencies:
   - requests
   - somoclu
   - click
+  - typing-extensions
   - pytest
   - pytest-cov
   - pip

@@ -24,6 +24,7 @@ dependencies:
   - somoclu
   - pytorch-cpu
   - click
+  - typing_extensions
   - pip
 
   - pip:

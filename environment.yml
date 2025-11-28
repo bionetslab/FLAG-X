@@ -23,6 +23,7 @@ dependencies:
   - requests
   - somoclu
   - click
+  - typing_extensions
   - pip
 
   - pip:
