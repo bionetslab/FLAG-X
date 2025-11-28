@@ -5,8 +5,9 @@ build:
   tools:
     python: "3.11"
 
-conda:
-  environment: env_docs.yml
+python:
+  install:
+    - requirements: docs/requirements.txt
 
 sphinx:
   configuration: docs/conf.py
