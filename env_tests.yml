@@ -1,4 +1,5 @@
-name: flagx_tests
+
+name: flagx-test
 channels:
   - conda-forge
   - bioconda
@@ -8,28 +9,23 @@ dependencies:
   - python>=3.10,<3.14
   - numpy
   - pandas
-  - matplotlib
-  - scikit-learn
-  - numba
-  - umap-learn
-  - anndata
   - scanpy
-  - igraph
-  - leidenalg
-  - fcsparser
-  - readfcs
+  - matplotlib
   - pytometry
-  - tqdm
-  - requests
+  - scikit-learn
+  - scipy
+  - numba
   - somoclu
   - click
-  - typing-extensions
+  - pyyaml
+  - typing_extensions
+  - pip
   - pytest
   - pytest-cov
-  - pip
 
   - pip:
       - torch --index-url https://download.pytorch.org/whl/cpu
       - flowio
       - flowutils
+
 

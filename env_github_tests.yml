@@ -8,26 +8,22 @@ dependencies:
   - python=3.10
   - numpy
   - pandas
-  - matplotlib
-  - scikit-learn
-  - numba
-  - umap-learn
-  - anndata
   - scanpy
-  - igraph
-  - leidenalg
-  - fcsparser
-  - readfcs
+  - matplotlib
   - pytometry
-  - tqdm
-  - requests
+  - scikit-learn
+  - scipy
+  - numba
   - somoclu
-  - pytorch-cpu
   - click
+  - pyyaml
   - typing_extensions
   - pip
+  - pytorch-cpu
 
   - pip:
       - flowio
       - flowutils
+
+
 
