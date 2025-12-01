@@ -5,6 +5,7 @@ import pickle
 import tempfile
 
 import numpy as np
+import scanpy as sc
 import matplotlib.pyplot as plt
 
 from itertools import accumulate
@@ -14,7 +15,7 @@ from typing import List, Tuple, Dict, Union, Any
 from typing_extensions import Literal
 
 from .io import FlowDataManager, export_to_fcs
-from .gating import SomClassifier, MLPClassifier
+from .gating import SomClassifier, MLPClassifier, TORCH_AVAILABLE as TORCH_AVAILABLE_GATING
 from .dimred import PCA, UMAP, TSNE, Isomap, LocallyLinearEmbedding, MDS, SpectralEmbedding
 
 
@@ -226,6 +227,11 @@ class GatingPipeline:
         if self.gating_method == 'som':
             self.gating_module_ = SomClassifier(**self.gating_method_kwargs)
         elif self.gating_method == 'mlp':
+            if not TORCH_AVAILABLE_GATING:
+                raise ImportError(
+                    "MLP gating requires PyTorch, but it is not installed.\n"
+                    "Install to enable MLP: https://pytorch.org/get-started/locally/"
+                )
             if self.label_key is None:
                 raise ValueError(
                     "'label_key' is required when gating_method is 'mlp'. "
@@ -310,20 +316,16 @@ class GatingPipeline:
         # Extract the processed data matrices (just channels used for training)
         xs = []
         for i, adata in enumerate(fdm.anndata_list_):
-            dl = fdm.get_data_loader_worker(
+
+            x = GatingPipeline._extract_and_concatenate_data(
                 data_list=[adata, ],
                 channels=self.channels,
                 layer_key=None,
                 label_key=None,
                 label_layer_key=None,
-                batch_size=-1,
                 shuffle=False,
-                return_data_loader='np_array',
-                on_disk=False,
-                filename_np=None,
-                # **kwargs  # No data loader kwargs needed here
+                verbosity=self.verbosity,
             )
-            x = next(iter(dl))
             xs.append(x)
 
         if gate:
@@ -519,25 +521,21 @@ class GatingPipeline:
             label_layer_key = None
 
         # Create dataloader with batch size = all events
-        dl = fdm.get_data_loader(
-            data_set='all',
+        out = GatingPipeline._extract_and_concatenate_data(
+            data_list=fdm.anndata_list_,
             channels=self.channels,
             layer_key=None,
             label_key=label_key,  # .obs key or varname or var index, if none is passed -> just data
             label_layer_key=label_layer_key,
-            batch_size=-1,
             shuffle=True,
-            return_data_loader='np_array',
-            on_disk=False,
-            filename_np=None,  # Filename of numpy data file if 'on_disk' is True
-            # **kwargs  # No data loader kwargs needed here
+            verbosity=self.verbosity,
         )
 
         # Get the data matrices from the data loader
         if label_key is not None:
-            x_train, y_train = next(iter(dl))
+            x_train, y_train = out
         else:
-            x_train = next(iter(dl))
+            x_train = out
 
             # Check if unlabeled_label in kwargs for SOM, use to create dummy y, if not use default
             unlabeled_label = self.gating_method_kwargs.get('unlabeled_label', None)
@@ -736,5 +734,44 @@ class GatingPipeline:
 
         return pipeline
 
+    @staticmethod
+    def _extract_and_concatenate_data(
+            data_list: List[sc.AnnData],
+            channels: Union[List[int], List[str], None] = None,
+            layer_key: Union[str, None] = None,
+            label_key: Union[int, str, None] = None,  # .obs key or varname or var index, if none is passed -> just data
+            label_layer_key: Union[str, None] = None,
+            shuffle: bool = True,
+            verbosity: int = 0,
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
 
+        # Set all channels as data if none are specified
+        if channels is None:
+                channels = list(range(data_list[0].n_vars))
+
+        # Get single data matrix (concatenated from all samples)
+        data_array = FlowDataManager._get_numpy_data_matrix(
+            data_list=data_list,
+            channels=channels,
+            layer_key=layer_key,
+        )
+
+        # Get label vector
+        label_array = None
+        if label_key is not None:
+            label_array = FlowDataManager._get_numpy_label_vector(
+                data_list=data_list,
+                label_key=label_key,
+                layer_key=label_layer_key,
+                verbosity=verbosity,
+            )
+
+        if shuffle:
+            idx = np.random.permutation(data_array.shape[0])
+            data_array = data_array[idx, :]
+
+            if label_array is not None:
+                label_array = label_array[idx]
+
+        return data_array if label_array is None else (data_array, label_array)
 
