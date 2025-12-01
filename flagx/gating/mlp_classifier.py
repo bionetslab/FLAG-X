@@ -2,18 +2,22 @@
 import os
 import warnings
 import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
 
 from typing import Tuple, List, Dict, Union, Any
 from typing_extensions import Self
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.metrics import f1_score
-from torch.utils.data import DataLoader
 
-from .fcnn_model import FCNNModel
+try:
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader
+    from .fcnn_model import FCNNModel
+    TORCH_AVAILABLE = True
+except Exception as e:
+    TORCH_AVAILABLE = False
 
 
 class MLPClassifier(BaseEstimator, ClassifierMixin):
@@ -60,7 +64,10 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             device (str or None): Device to use for training (e.g., ``'cpu'``, ``'cuda'``, ``'cuda:0'``). If None, CUDA is used when available, otherwise falls back to CPU.
             verbosity (int): Verbosity level for training logs.
         """
-
+        raise ImportError(
+            "PyTorch is required for MLPClassifier but is not installed.\n"
+            "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
+        )
         super().__init__()
         self.layer_sizes = layer_sizes
         self.n_epochs = n_epochs
