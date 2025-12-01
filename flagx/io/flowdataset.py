@@ -2,7 +2,15 @@
 import numpy as np
 
 from typing import Union, Tuple
-from torch.utils.data import Dataset
+
+try:
+    from torch.utils.data import Dataset
+except Exception:
+    raise ImportError(
+        "PyTorch is required for FlowDataset but is not installed.\n"
+        "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
+    )
+
 
 
 class FlowDataset(Dataset):

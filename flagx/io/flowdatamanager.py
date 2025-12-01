@@ -12,10 +12,24 @@ import gc
 from typing import Tuple, List, Dict, Union, Any
 from typing_extensions import Literal
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader
 from matplotlib import colormaps
-from .flowdataset import FlowDataset
-from .flowdataloaders import FlowDataLoaders
+
+try:
+    from torch.utils.data import DataLoader
+    from .flowdataset import FlowDataset
+    from .flowdataloaders import FlowDataLoaders
+    TORCH_AVAILABLE = True
+except Exception as e:
+    FlowDataset = None
+    FlowDataLoaders = None
+    TORCH_AVAILABLE = False
+    warnings.warn(
+        "PyTorch is required for FlowDataManager.get_data_loader() but is not installed. The function is not available.\n"
+        "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
+    )
+
+
+
 
 
 class FlowDataManager:
@@ -1237,6 +1251,12 @@ class FlowDataManager:
         if on_disk and save_path is None:
             raise ValueError(
                 "If 'on_disk' is True 'save_path' (= dir where the dataloader data file is stored) cannot be None"
+            )
+
+        if not TORCH_AVAILABLE:
+            raise ImportError(
+                "PyTorch not installed, get_data_loader() is not available, all other IO features which remain fully functional.\n"
+                "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
             )
 
         # Set all channels as data if none are specified
