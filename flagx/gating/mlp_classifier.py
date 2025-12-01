@@ -15,9 +15,11 @@ try:
     import torch.optim as optim
     from torch.utils.data import DataLoader
     from .fcnn_model import FCNNModel
-    TORCH_AVAILABLE = True
 except Exception as e:
-    TORCH_AVAILABLE = False
+    raise ImportError(
+        "PyTorch is required for MLPClassifier but is not installed.\n"
+        "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
+    )
 
 
 class MLPClassifier(BaseEstimator, ClassifierMixin):
@@ -64,10 +66,6 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
             device (str or None): Device to use for training (e.g., ``'cpu'``, ``'cuda'``, ``'cuda:0'``). If None, CUDA is used when available, otherwise falls back to CPU.
             verbosity (int): Verbosity level for training logs.
         """
-        raise ImportError(
-            "PyTorch is required for MLPClassifier but is not installed.\n"
-            "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
-        )
         super().__init__()
         self.layer_sizes = layer_sizes
         self.n_epochs = n_epochs

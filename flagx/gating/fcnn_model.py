@@ -4,9 +4,11 @@ from typing import Tuple
 try:
     import torch.nn as nn
     import torch.nn.functional as F
-    TORCH_AVAILABLE = True
 except Exception as e:
-    TORCH_AVAILABLE = False
+    raise ImportError(
+        "PyTorch is required for FCNNModel but is not installed.\n"
+        "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
+    )
 
 
 class FCNNModel(nn.Module):
@@ -41,11 +43,6 @@ class FCNNModel(nn.Module):
     # Dimensions chosen as described in paper and
     # https://github.com/lijcheng12/DGCyTOF/blob/main/Code_Study/DGCyTOF/CyTOF2/CyTOF2.ipynb
     def __init__(self, in_size, out_size, layer_sizes: Tuple[int, int, int] = (128, 64, 32)):
-        if not TORCH_AVAILABLE:
-            raise ImportError(
-                "PyTorch is required for FCNNModel but is not installed.\n"
-                "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
-            )
         super(FCNNModel, self).__init__()
         # Define layers
         self.fc1 = nn.Linear(in_size, layer_sizes[0])
