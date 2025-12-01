@@ -22,6 +22,7 @@ try:
 except Exception as e:
     FlowDataset = None
     FlowDataLoaders = None
+    DataLoader = None
     TORCH_AVAILABLE = False
     warnings.warn(
         "PyTorch is required for FlowDataManager.get_data_loader() but is not installed. The function is not available.\n"
