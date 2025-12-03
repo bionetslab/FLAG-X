@@ -47,7 +47,7 @@ FLAG-X provides a streamlined pipeline and a command line interface (CLI) for us
   ```console
   pip install flowio
   ```
-  To enable PyTorch-based functionality (e.g. MLPClassifier) install `torch` according to your system's requirements (see: [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+  To enable PyTorch-based functionality (e.g. MLPClassifier) install `torch` according to your system's requirements (see: [PyTorch get started](https://pytorch.org/get-started/locally/)).
   
   For example:
   ```console
@@ -109,4 +109,5 @@ Full documentation is available on [Read the Docs](https://flag-x.readthedocs.io
 ## License
 
 This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
+
 
