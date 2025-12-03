@@ -21,21 +21,62 @@ FLAG-X provides a streamlined pipeline and a command line interface (CLI) for us
 
 
 ## Installation
-From source using **conda** or **mamba**:
-```console
-git clone git@github.com:bionetslab/FLAG-X.git
-cd FLAG-X
-mamba env create -f environment.yml
-mamba activate flagx
-pip install -e .
-```
+- Using **conda** or **mamba**:
+  
+  Ensure correct channel priority:
+  ```console
+  conda config --show channels
+  conda config --show channel_priority
+  ```
+  Should show:
+  ```console
+  channels:
+    - conda-forge
+    - bioconda
+    - defaults
+  
+  channel_priority: strict
+  ```
+  Create environment, install flagx, and activate:
+  ```console
+  mamba create -n flagx -y
+  mamba install flagx
+  mamba activate flagx
+  ```
+  To enable data export to FCS, install `flowio` using pip:
+  ```console
+  pip install flowio
+  ```
+  To enable PyTorch-based functionality (e.g. MLPClassifier) install `torch` according to your system's requirements (see: [https://pytorch.org/get-started/locally/](https://pytorch.org/get-started/locally/)).
+  
+  For example:
+  ```console
+  # v2.9.1, Linux, CUDA 12.8
+  pip install torch
 
-From source using **pixi**:
-```console
-git clone git@github.com:bionetslab/FLAG-X.git
-cd FLAG-X
-pixi install
-```
+  # v2.9.1, Linux, CUDA 12.6
+  pip install torch --index-url https://download.pytorch.org/whl/cu126
+
+  # v2.9.1, Linux, CPU only
+  pip install torch --index-url https://download.pytorch.org/whl/cpu
+  ```
+  
+
+- From source using **conda** or **mamba** and **pip**:
+  ```console
+  git clone git@github.com:bionetslab/FLAG-X.git
+  cd FLAG-X
+  mamba env create -f environment.yml
+  mamba activate flagx
+  pip install -e .
+  ```
+
+- From source using **pixi**:
+  ```console
+  git clone git@github.com:bionetslab/FLAG-X.git
+  cd FLAG-X
+  pixi install
+  ```
 
 **NOTE:** The environments provided in this project install the CPU-only version of PyTorch. 
 Users who require GPU acceleration must install a CUDA-enabled PyTorch build themselves following the instructions at [PyTorch get started](https://pytorch.org/get-started/locally/).
