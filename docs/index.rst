@@ -47,19 +47,59 @@ FLAG-X API
 Installation
 ------------
 
-From source using **conda** or **mamba**::
+- Using **conda** or **mamba**:
 
-    git clone git@github.com:bionetslab/FLAG-X.git
-    cd FLAG-X
-    mamba env create -f environment.yml
-    mamba activate flagx
-    pip install -e .
+  Ensure correct channel priority::
 
-From source using **pixi**::
+      conda config --show channels
+      conda config --show channel_priority
 
-    git clone git@github.com:bionetslab/FLAG-X.git
-    cd FLAG-X
-    pixi install
+  Should show::
+
+      channels:
+        - conda-forge
+        - bioconda
+        - defaults
+
+      channel_priority: strict
+
+  Create environment, install flagx, and activate::
+
+      mamba create -n flagx -y
+      mamba install flagx -y
+      mamba activate flagx
+
+  To enable data export to FCS, install ``flowio`` using pip::
+
+      pip install flowio
+
+  To enable PyTorch-based functionality (e.g., MLPClassifier), install ``torch`` according to your system's requirements (see: `PyTorch get started <https://pytorch.org/get-started/locally/>`_).
+
+  For example::
+
+      # v2.9.1, Linux, CUDA 12.8
+      pip install torch
+
+      # v2.9.1, Linux, CUDA 12.6
+      pip install torch --index-url https://download.pytorch.org/whl/cu126
+
+      # v2.9.1, Linux, CPU only
+      pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+
+- From source using **conda** or **mamba**::
+
+      git clone git@github.com:bionetslab/FLAG-X.git
+      cd FLAG-X
+      mamba env create -f environment.yml
+      mamba activate flagx
+      pip install -e .
+
+- From source using **pixi**::
+
+      git clone git@github.com:bionetslab/FLAG-X.git
+      cd FLAG-X
+      pixi install
 
 **NOTE:**
 The environments provided in this project install the CPU-only version of PyTorch.
