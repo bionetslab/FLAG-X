@@ -8,6 +8,7 @@ import copy
 import os
 import warnings
 import gc
+import re
 
 from typing import Tuple, List, Dict, Union, Any
 from typing_extensions import Literal
@@ -1728,4 +1729,54 @@ class FlowDataManager:
 
         return None if inplace else data_list
 
+    @staticmethod
+    def lmd_to_fcs(filepath: str, filename: str, save_path: str) -> None:
+        """
+        Extract all embedded FCS2.x and FCS3.x files from a Beckman Coulter .lmd file.
 
+        Args:
+            filepath (str): Path to the .lmd file.
+            filename (str): Filename of the .lmd file.
+            save_path (str): Directory where extracted FCS files will be written.
+
+        Returns:
+            None: Resulting fcs files are saved to ``save_path``.
+        """
+
+        os.makedirs(save_path, exist_ok=True)
+
+        lmd_path = os.path.join(filepath, filename)
+
+        # Read raw bytes
+        with open(lmd_path, 'rb') as f:
+            data = f.read()
+
+        # Find all embedded FCS headers (FCS2.0, FCS3.0, FCS3.1, etc.)
+        # Case-insensitive match of FCSx.x at the beginning of a block
+        pattern = re.compile(rb"FCS[23]\.[0-9]", re.IGNORECASE)
+        matches = list(pattern.finditer(data))
+
+        blocks: Dict[str, int] = {}
+        for m in matches:
+            version = m.group().decode().upper()  # Matched pattern
+            start = m.start()  # Byte offset in .lmd file
+            blocks[version] = start
+            print(f'{version} at offset {start:,}')
+
+        # Sort by offset (just to ensure reliable extraction order) -> [(version_str, offset), ...]
+        sorted_blocks = sorted(blocks.items(), key=lambda x: x[1])
+
+        # Get filename without extension
+        basename = os.path.splitext(filename)[0]
+
+        # Extract each block: from its start until the next block or end of file
+        for i, (version, start) in enumerate(sorted_blocks):
+
+            end = sorted_blocks[i + 1][1] if i + 1 < len(sorted_blocks) else len(data)
+
+            fcs_bytes = data[start:end]
+
+            out_path = os.path.join(save_path, f'{basename}_{version.replace('.', '_')}.fcs')
+
+            with open(out_path, 'wb') as out:
+                out.write(fcs_bytes)
