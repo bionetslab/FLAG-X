@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+import pytometry as pm
 from pathlib import Path
 from flagx.io import FlowDataManager
 
@@ -18,6 +19,10 @@ EXPECTED_CHANNELS = [
     'FL4 INT_CD33-PC5.5', 'FL5 INT_CD34-PC7', 'FL6 INT_CD117-APC',
     'FL7 INT_CD7-APC700', 'FL8 INT_CD16-APC750', 'FL9 INT_HLA-PB',
     'FL10 INT_CD45-KO', 'TIME', 'label'
+]
+COMPENSATION_CHANNELS = [
+    'FL1 INT_CD14-FITC', 'FL2 INT_CD19-PE', 'FL3 INT_CD13-ECD', 'FL4 INT_CD33-PC5.5', 'FL5 INT_CD34-PC7',
+    'FL6 INT_CD117-APC', 'FL7 INT_CD7-APC700', 'FL8 INT_CD16-APC750', 'FL9 INT_HLA-PB', 'FL10 INT_CD45-KO'
 ]
 N_CHANNELS = len(EXPECTED_CHANNELS)
 N_FILES = 5
@@ -769,4 +774,78 @@ def test_check_og_channel_names_warning():
 
     with pytest.warns(UserWarning):
         FlowDataManager.check_og_channel_names_df_worker(df, verbosity=1)
+
+# ------------------------------------------------------------
+# 11. Compensation
+# ------------------------------------------------------------
+def test_compensation(fdm):
+
+    fdm.load_data_files_to_anndata()
+    fdm.anndata_list_ = fdm.anndata_list_[0:2]
+
+    # Define dummy spillover matrix
+    spill = np.eye(len(COMPENSATION_CHANNELS))
+    spill[0, 1] = 0.05  # channel 1 spills 5% into channel 0
+    spill[1, 2] = 0.03  # channel 2 spills 3% into channel 1
+    spill[0, 2] = 0.02  # channel 1 spills 2% into channel 2
+    spill[6, 7] = 0.32  # channel 5 spills 32% into channel 6
+    spill_df = pd.DataFrame(spill, columns=COMPENSATION_CHANNELS, index=COMPENSATION_CHANNELS)
+    for adata in fdm.anndata_list_:
+        adata.uns['meta'] = dict()
+        adata.uns['meta']['spill'] = spill_df
+
+    # Run compensation
+    fdm.sample_wise_compensation()
+
+    # Check that log file exists
+    log_path = Path(fdm.save_path) / 'compensation_logs.csv'
+    assert log_path.exists()
+    logs = pd.read_csv(log_path, index_col=0)
+    assert logs.shape[0] == 2
+    assert set(logs['logs']) == {'compensation applied successfully'}
+
+    for adata in fdm.anndata_list_:
+        assert 'uncompensated' in adata.layers
+        assert 'original' not in adata.layers
+        assert not np.allclose(adata.X, adata.layers['uncompensated'])
+
+def test_compensation_failure_for_one_sample(fdm, monkeypatch):
+
+    fdm.load_data_files_to_anndata()
+    fdm.anndata_list_ = fdm.anndata_list_[0:2]
+
+    # Save original method so the second call behaves normally
+    real_compensate = pm.pp.compensate
+
+    # Choose one AnnData to break
+    fail_adata = fdm.anndata_list_[0]
+
+    def mock_compensate(adata, **kwargs):
+        if adata is fail_adata:
+            raise KeyError('xyz')
+        else:
+            return real_compensate(adata, **kwargs)
+
+    # Replace pytometry compensate with mock
+    monkeypatch.setattr(pm.pp, 'compensate', mock_compensate)
+
+    # Define dummy spillover matrix
+    spill = np.eye(len(COMPENSATION_CHANNELS))
+    spill[0, 1] = 0.05  # channel 1 spills 5% into channel 0
+    spill[1, 2] = 0.03  # channel 2 spills 3% into channel 1
+    spill[0, 2] = 0.02  # channel 1 spills 2% into channel 2
+    spill[6, 7] = 0.32  # channel 5 spills 32% into channel 6
+    spill_df = pd.DataFrame(spill, columns=COMPENSATION_CHANNELS, index=COMPENSATION_CHANNELS)
+    for adata in fdm.anndata_list_:
+        adata.uns['meta'] = dict()
+        adata.uns['meta']['spill'] = spill_df
+
+    # Run
+    fdm.sample_wise_compensation()
+
+    # Read logs
+    df = pd.read_csv(Path(fdm.save_path) / 'compensation_logs.csv', index_col=0)
+    assert len(df) == 2
+    assert 'xyz' in df['logs'].iloc[0]
+    assert df['logs'].iloc[1] == 'compensation applied successfully'
 

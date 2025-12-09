@@ -11,6 +11,8 @@ train_data_file_type: "fcs"
 channels: ["FS INT", "SS INT", "16-FITC", "56-PE", "3-ECD", "4-PC7", "19-APC", "14-APC700", "8-PB", "45-CO"]
 label_key: "population"
 
+compensate: false
+
 channel_names_alignment_kwargs:
   reference_channel_names: 0  # Use the 1st file that is loaded as reference for the channel names
 

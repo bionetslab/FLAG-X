@@ -484,16 +484,62 @@ class FlowDataManager:
                     print(f'# ### Channel: {i}, Name: {value_counts.index[0]} is consistent across samples\n')
 
     # ### sample_wise_compensation() ###################################################################################
-    def sample_wise_compensation(self) -> None:
+    def sample_wise_compensation(self, **compensation_kwargs) -> None:
+        """
+        Apply fluorescence compensation to each sample in ``anndata_list_`` using Pytometry
 
-        pass
+        Each AnnData object is compensated independently. An ``'uncompensated'`` layer is added containing a copy of the original expression matrix before compensation.
+        See: https://pytometry.netlify.app/pytometry.preprocessing.compensate#pytometry.preprocessing.compensate
+
+        Args:
+            **compensation_kwargs: Additional keyword arguments forwarded to ``pytometry.preprocessing.compensate``.
+
+
+        Returns:
+            None: The compensated data are written in place into ``anndata_list_`` and a dataframe with logs is saved to ``compensation_logs.csv``.
+        """
+
+        log_df = FlowDataManager.sample_wise_compensation_worker(
+            data_list=self.anndata_list_, inplace=True, **compensation_kwargs
+        )
+
+        log_df.to_csv(os.path.join(self._save_path, 'compensation_logs.csv'))
 
     @staticmethod
-    def sample_wise_compensation_worker(data_list: List[sc.AnnData], **kwargs) -> Union[List[sc.AnnData], None]:
+    def sample_wise_compensation_worker(data_list: List[sc.AnnData], inplace: bool = True, **kwargs) -> Union[Tuple[List[sc.AnnData], pd.DataFrame], pd.DataFrame]:
 
+        if not inplace:
+            data_list = [adata.copy() for adata in data_list]
+
+        # Force compensate() to run inplace
+        kwargs['inplace'] = True
+
+        filenames = []
+        compensation_logs = []
         for adata in data_list:
 
+            filenames.append(adata.uns['filename'])
+
+            # Store uncompensated data in extra layer
             adata.layers['uncompensated'] = adata.X.copy()
+
+            # Apply compensation
+            try:
+                pm.pp.compensate(adata, **kwargs)
+
+                # Delete layer added by pytometry
+                if 'original' in adata.layers:
+                    del adata.layers['original']
+
+                compensation_logs.append('compensation applied successfully')
+
+            except Exception as e:
+
+                compensation_logs.append(str(e))
+
+        compensation_log_df = pd.DataFrame({'filename': filenames, 'logs': compensation_logs})
+
+        return compensation_log_df if inplace else (data_list, compensation_log_df)
 
     # ### sample_wise_preprocessing() ##################################################################################
     def sample_wise_preprocessing(

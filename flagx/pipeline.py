@@ -45,6 +45,7 @@ class GatingPipeline:
         save_path (str or None): Output directory for pipeline metadata and results. If ``None``, defaults to CWD.
         channels (list[int] or list[str] or None): Indices or names of channels to train on.
         label_key (int, str, or None): Key to labels. Can be column index in ``.X``, channel name (key in ``var_names``), or key to ``.obs``. If None, only unsupervised SOM training is available.
+        compensate (bool): Whether to apply compensation or not. Defaults to False. See ``FlowDataManager.sample_wise_compensation()``.
         channel_names_alignment_kwargs (dict or None): Arguments forwarded to channel alignment. See ``FlowDataManager.align_channel_names()``.
         relabel_data_kwargs (dict or None): Mapping for relabeling training data. See ``FlowDataManager.relabel_data()``.
         preprocessing_kwargs (dict or None): Sample-wise preprocessing configuration. See ``FlowDataManager.sample_wise_preprocessing()``.
@@ -72,6 +73,8 @@ class GatingPipeline:
             label_key: Union[int, str, None] = None,
             # .obs key or varname or var index, if none is passed -> unsupervised
 
+            compensate: bool = False,
+
             channel_names_alignment_kwargs: Union[Dict[str, Any], None] = None,  # {'reference_channel_names': int | dict | None}
 
             relabel_data_kwargs: Union[Dict[str, Any], None] = None,  # {'old_to_new_label_mapping': dict, !optional! 'new_label_key': str}
@@ -96,6 +99,7 @@ class GatingPipeline:
             save_path (str or None): Output directory for pipeline metadata and results. If None, defaults to CWD.
             channels (list[int] or list[str] or None): Indices or names of channels to train on.
             label_key (int, str, or None): Key to labels in `.X`, `.obs`, or `.layers`. If None, only unsupervised SOM training is available.
+            compensate (bool): Whether to apply compensation or not. Defaults to False.
             channel_names_alignment_kwargs (dict or None): Arguments forwarded to channel alignment.
             relabel_data_kwargs (dict or None): Mapping for relabeling training data.
             preprocessing_kwargs (dict or None): Sample-wise preprocessing configuration.
@@ -120,6 +124,9 @@ class GatingPipeline:
         self.save_path = save_path
         self.train_data_manager_save_path = None
         self._init_save_paths()
+
+        # Whether to apply compensation or not
+        self.compensate = compensate
 
         # Keyword arguments for aligning the channel names across samples
         self.channel_names_alignment_kwargs = channel_names_alignment_kwargs
@@ -451,6 +458,10 @@ class GatingPipeline:
 
         # Load train data files to anndata
         fdm.load_data_files_to_anndata()
+
+        # Apply compensation
+        if self.compensate:
+            fdm.sample_wise_compensation()
 
         # Downsample first
         if downsampling_kwargs is not None:
