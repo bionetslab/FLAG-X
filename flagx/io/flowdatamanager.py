@@ -483,6 +483,18 @@ class FlowDataManager:
                 if verbosity >= 2:
                     print(f'# ### Channel: {i}, Name: {value_counts.index[0]} is consistent across samples\n')
 
+    # ### sample_wise_compensation() ###################################################################################
+    def sample_wise_compensation(self) -> None:
+
+        pass
+
+    @staticmethod
+    def sample_wise_compensation_worker(data_list: List[sc.AnnData], **kwargs) -> Union[List[sc.AnnData], None]:
+
+        for adata in data_list:
+
+            adata.layers['uncompensated'] = adata.X.copy()
+
     # ### sample_wise_preprocessing() ##################################################################################
     def sample_wise_preprocessing(
             self,
