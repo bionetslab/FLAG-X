@@ -11,6 +11,7 @@ dependencies:
   - scanpy
   - matplotlib
   - pytometry
+  - flowio
   - scikit-learn
   - scipy
   - numba
@@ -20,10 +21,3 @@ dependencies:
   - typing_extensions
   - pip
   - pytorch-cpu
-
-  - pip:
-      - flowio
-      - flowutils
-
-
-
