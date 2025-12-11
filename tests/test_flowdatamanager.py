@@ -849,3 +849,26 @@ def test_compensation_failure_for_one_sample(fdm, monkeypatch):
     assert 'xyz' in df['logs'].iloc[0]
     assert df['logs'].iloc[1] == 'compensation applied successfully'
 
+def test_lmd_loading(tmp_path_factory):
+
+    save_dir = tmp_path_factory.mktemp('fdm_output')
+
+    fdm_lmd = FlowDataManager(
+        data_file_names=[f'test{i}.LMD' for i in range(1, 6)],
+        data_file_path=str(Path(__file__).parent / 'test_data'),
+        save_path=str(save_dir),
+        verbosity=0,
+    )
+    fdm_lmd.load_data_files_to_anndata()
+
+    assert len(fdm_lmd.anndata_list_) == N_FILES
+    assert fdm_lmd.invalid_files_ == []
+
+    for adata in fdm_lmd.anndata_list_:
+        assert adata.n_vars == 9
+        assert list(adata.var['channel']) == ['FS-H', 'FS-A', 'FS-W', 'SS-H', 'SS-A', 'SS-W', 'FL3-H', 'FL3-A', 'TIME']
+        assert list(adata.var_names) == ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+        assert 'filename' in adata.uns
+
+
+
