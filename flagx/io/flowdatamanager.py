@@ -8,7 +8,8 @@ import copy
 import os
 import warnings
 import gc
-import re
+import tempfile
+import flowio
 
 from typing import Tuple, List, Dict, Union, Any
 from typing_extensions import Literal
@@ -1730,9 +1731,38 @@ class FlowDataManager:
         return None if inplace else data_list
 
     @staticmethod
-    def lmd_to_fcs(filepath: str, filename: str, save_path: str) -> None:
+    def lmd_to_anndata(filepath: str, filename: str, fcs_version: str = '3.0') -> sc.AnnData:
+
         """
-        Extract all embedded FCS2.x and FCS3.x files from a Beckman Coulter .lmd file.
+        Load embedded FCS2.0, FCS3.0, or FCS3.1 file from a Beckman Coulter ``.lmd`` file to an AnnData object.
+
+        Args:
+            filepath (str): Path to the .lmd file.
+            filename (str): Filename of the .lmd file.
+            fcs_version (str): Which FCS file to load. Must be  ``'2.0'``, ``'3.0'``, or ``'3.1'``. Defaults to ``'3.0'``.
+
+        Returns:
+            AnnData: AnnData object containing data from the selected FCS file .
+        """
+
+        if fcs_version not in {'2.0', '3.0', '3.1'}:
+            raise ValueError("'fcs_version' must be '2.0', '3.0', or '3.1'")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+
+            extracted = FlowDataManager.lmd_to_fcs(filepath=filepath, filename=filename, save_path=tmpdir)
+
+            key = f'FCS{fcs_version}'
+            temp_fcs_file_path = extracted[key]
+
+            adata = pm.io.read_fcs(temp_fcs_file_path, reindex=False)
+
+        return adata
+
+    @staticmethod
+    def lmd_to_fcs(filepath: str, filename: str, save_path: str) -> Dict[str, str]:
+        """
+        Extract embedded FCS2.0 and FCS3.0 or FCS3.1 files from a Beckman Coulter ``.lmd`` file.
 
         Args:
             filepath (str): Path to the .lmd file.
@@ -1740,43 +1770,64 @@ class FlowDataManager:
             save_path (str): Directory where extracted FCS files will be written.
 
         Returns:
-            None: Resulting fcs files are saved to ``save_path``.
+            Dict: Dictionary containing FCS versions as keys and filepaths to saved FCS files as values. Resulting fcs files are saved to ``save_path``.
         """
 
         os.makedirs(save_path, exist_ok=True)
 
-        lmd_path = os.path.join(filepath, filename)
-
-        # Read raw bytes
-        with open(lmd_path, 'rb') as f:
-            data = f.read()
-
-        # Find all embedded FCS headers (FCS2.0, FCS3.0, FCS3.1, etc.)
-        # Case-insensitive match of FCSx.x at the beginning of a block
-        pattern = re.compile(rb"FCS[23]\.[0-9]", re.IGNORECASE)
-        matches = list(pattern.finditer(data))
-
-        blocks: Dict[str, int] = {}
-        for m in matches:
-            version = m.group().decode().upper()  # Matched pattern
-            start = m.start()  # Byte offset in .lmd file
-            blocks[version] = start
-            print(f'{version} at offset {start:,}')
-
-        # Sort by offset (just to ensure reliable extraction order) -> [(version_str, offset), ...]
-        sorted_blocks = sorted(blocks.items(), key=lambda x: x[1])
-
         # Get filename without extension
         basename = os.path.splitext(filename)[0]
 
-        # Extract each block: from its start until the next block or end of file
-        for i, (version, start) in enumerate(sorted_blocks):
+        # Load individual FCS files contained in LMD
+        lmd_path = os.path.join(filepath, filename)
+        fds = flowio.read_multiple_data_sets(lmd_path)
 
-            end = sorted_blocks[i + 1][1] if i + 1 < len(sorted_blocks) else len(data)
+        extracted = dict()
+        for fd in fds:
 
-            fcs_bytes = data[start:end]
+            fcs_version = fd.version
 
-            out_path = os.path.join(save_path, f'{basename}_{version.replace('.', '_')}.fcs')
+            fd = FlowDataManager._add_missing_pnn_pns_meta_data(flowdata=fd)
 
-            with open(out_path, 'wb') as out:
-                out.write(fcs_bytes)
+            # Define filename and save to FCS
+            out_filename = f'{basename}_{fcs_version.replace('.', '_')}.fcs'
+            out_path = os.path.join(save_path, out_filename)
+            fd.write_fcs(out_path, metadata=None)
+
+            extracted[f'FCS{fcs_version}'] = out_path
+
+        return extracted
+
+    @staticmethod
+    def _add_missing_pnn_pns_meta_data(flowdata: flowio.FlowData) -> flowio.FlowData:
+
+        pnn_list = []
+        pns_list = []
+        for i in range(1, flowdata.channel_count + 1):
+
+            # Insert missing PnN values
+            if 'pnn' not in flowdata.channels[i] or flowdata.channels[i]['pnn'] == '':
+                name = f'channel-{i}'
+                # Update FlowData.channels
+                flowdata.channels[i]['pnn'] = name
+                # Update FlowData.text
+                flowdata.text[f'p{i}n'] = name
+                pnn_list.append(name)
+            else:
+                pnn_list.append(flowdata.channels[i]['pnn'])
+
+            # Insert missing PnS values
+            if 'pns' not in flowdata.channels[i] or flowdata.channels[i]['pns'] == '':
+                # Update FlowData.channels
+                flowdata.channels[i]['pns'] = flowdata.channels[i]['pnn']
+                # Update FlowData.text
+                flowdata.text[f'p{i}s'] = flowdata.channels[i]['pnn']
+                pns_list.append(flowdata.channels[i]['pnn'])
+            else:
+                pns_list.append(flowdata.channels[i]['pns'])
+
+        # Update FlowData.pnn_labels or FlowData.pns_labels
+        flowdata.pnn_labels = pnn_list
+        flowdata.pns_labels = pns_list
+
+        return flowdata
