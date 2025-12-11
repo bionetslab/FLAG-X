@@ -1810,7 +1810,8 @@ class FlowDataManager:
             fd = FlowDataManager._add_missing_pnn_pns_meta_data(flowdata=fd)
 
             # Define filename and save to FCS
-            out_filename = f'{basename}_{fcs_version.replace('.', '_')}.fcs'
+            fcs_version_fn = fcs_version.replace('.', '_')
+            out_filename = f'{basename}_{fcs_version_fn}.fcs'
             out_path = os.path.join(save_path, out_filename)
             fd.write_fcs(out_path, metadata=None)
 
