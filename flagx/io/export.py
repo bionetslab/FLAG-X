@@ -1,18 +1,12 @@
 
 import os
-import warnings
+import flowio
 
 import numpy as np
 import pandas as pd
 import scanpy as sc
 
 from typing import List, Tuple, Dict, Union
-
-try:
-    import flowio
-    FLOWIO_AVAILABLE = True
-except ImportError:
-    FLOWIO_AVAILABLE = False
 
 
 def export_to_fcs(
@@ -240,26 +234,14 @@ def _df_to_fcs(
         fcs_metadata_dict: Union[Dict, List[Dict]],
 ):
 
-        if FLOWIO_AVAILABLE:
-            # Add the correct range to the metadata
-            fcs_metadata_dict.update({f"P{i}R": str(val_range[1]) for i in range(1, df.shape[1] + 1)})
+        # Add the correct range to the metadata
+        fcs_metadata_dict.update({f"P{i}R": str(val_range[1]) for i in range(1, df.shape[1] + 1)})
 
-            with open(os.path.join(save_path, save_filename), 'wb') as f:
-                flowio.create_fcs(
-                    file_handle=f,
-                    event_data=df.to_numpy().flatten().tolist(),
-                    channel_names=df.columns.tolist(),
-                    opt_channel_names=df.columns.tolist(),
-                    metadata_dict=fcs_metadata_dict,
-                )
-
-        else:
-            csv_filename = save_filename[:-4] +  '.csv'
-            warnings.warn(
-                "FlowIO is required for data export to FCS but is not installed. Saving to CSV instead.\n"
-                "Install with: pip install FlowIO (https://pypi.org/project/FlowIO/).",
-                UserWarning
+        with open(os.path.join(save_path, save_filename), 'wb') as f:
+            flowio.create_fcs(
+                file_handle=f,
+                event_data=df.to_numpy().flatten().tolist(),
+                channel_names=df.columns.tolist(),
+                opt_channel_names=df.columns.tolist(),
+                metadata_dict=fcs_metadata_dict,
             )
-
-            df.to_csv(os.path.join(save_path, csv_filename), index=False)
-

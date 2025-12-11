@@ -3,7 +3,7 @@ import warnings
 
 # Always import FlowDataManager because it works without PyTorch
 from .flowdatamanager import FlowDataManager
-from .export import export_to_fcs, FLOWIO_AVAILABLE
+from .export import export_to_fcs
 
 # Try to import torch-dependent components
 try:
@@ -22,4 +22,4 @@ except Exception:
         UserWarning
     )
 
-__all__ = ['FlowDataManager', 'FlowDataset', 'FlowDataLoaders', 'export_to_fcs', 'TORCH_AVAILABLE', 'FLOWIO_AVAILABLE']
+__all__ = ['FlowDataManager', 'FlowDataset', 'FlowDataLoaders', 'export_to_fcs', 'TORCH_AVAILABLE']
