@@ -9,6 +9,7 @@ dependencies:
   - numpy
   - pandas
   - scanpy
+  - umap-learn
   - matplotlib
   - pytometry
   - flowio
