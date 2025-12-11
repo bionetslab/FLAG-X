@@ -69,7 +69,7 @@ class FlowDataManager:
     def __init__(
             self,
             data_file_names: List[str],
-            data_file_type: Union[Literal['fcs', 'csv'], None] = None,
+            data_file_type: Union[Literal['fcs', 'csv', 'lmd'], None] = None,
             data_file_path: Union[str, None] = None,
             save_path: Union[str, None] = None,
             verbosity: int = 1,  # 0 = silent, 1 = warnings, 2 = info
@@ -77,7 +77,7 @@ class FlowDataManager:
         """
         Parameters:
             data_file_names (List[str]): List of input filenames to load.
-            data_file_type (Literal['fcs', 'csv'] or None): Type of input files. If None, inferred from extension of the first file.
+            data_file_type (Literal['fcs', 'csv', 'lmd'] or None): Type of input files. If None, inferred from extension of the first file.
             data_file_path (str or None): Directory containing the raw files. Defaults to CWD.
             save_path (str or None): Output directory for any exported files. Defaults to CWD.
             verbosity (int): Logging level. 0: silent, 1: warnings, 2+: info/debug.
@@ -88,8 +88,8 @@ class FlowDataManager:
         if not len(data_file_names) >= 1:
             raise ValueError("'data_file_names' must have at least one entry")
 
-        if data_file_type not in ['fcs', 'csv', None]:
-            raise ValueError("'data_file_type' must be either 'fcs', 'csv', or None")
+        if data_file_type not in ['fcs', 'csv', 'lmd', None]:
+            raise ValueError("'data_file_type' must be either 'fcs', 'csv', 'lmd', or None")
 
         if not isinstance(data_file_path, (str, type(None))):
             raise TypeError("'data_file_path' must be a string or None")
@@ -176,8 +176,9 @@ class FlowDataManager:
         """
         Load all provided data files into AnnData objects.
 
-        FCS files are read using the `Pytometry` Python package, and CSV files are read with `Pandas`
-        before being wrapped into AnnData. Invalid files are skipped and recorded.
+        FCS files are read using the `Pytometry` Python package and CSV files are read with `Pandas` before being wrapped into AnnData.
+        For LMD files the loader looks for a FCS3.1, FCS3.0, or FCS2.0 compliant file embedded in the LMD and loads the first found one to AnnData.
+        Invalid files are skipped and recorded.
 
         Raises:
             ValueError: If file type cannot be inferred for the first file.
@@ -198,7 +199,7 @@ class FlowDataManager:
                 raise ValueError(f"Unsupported or unknown file type for {self._data_file_names[0]}. "
                                  f"Cannot use it as reference. Please remove it from 'data_filenames''")
 
-        # Initialize list for saving anndatas (or their filenames) and invalid filenames
+        # Initialize list for saving AnnDatas and invalid filenames
         self.invalid_files_ = []
         self.anndata_list_ = []
 
@@ -217,12 +218,29 @@ class FlowDataManager:
                 continue
 
             # Load data file to anndata
-            if self._data_file_type == 'fcs':  # data_file_type is fcs
+            if self._data_file_type == 'fcs':
                 adata = pm.io.read_fcs(os.path.join(self._data_file_path, fn))
-            else: # data_file_type is csv
+            elif self._data_file_type == 'csv':
                 df = pd.read_csv(os.path.join(self._data_file_path, fn), dtype=np.float32)
                 adata = sc.AnnData(X=df.to_numpy())
                 adata.var_names = df.columns.copy()
+            else:  # data_file_type is lmd
+
+                errors = {}
+
+                for v in ['3.1' ,'3.0', '2.0']:
+                    try:
+                        adata = FlowDataManager.lmd_to_anndata(
+                            filepath=self._data_file_path, filename=fn, fcs_version=v
+                        )
+                        break
+                    except Exception as e:
+                        errors[v] = str(e)
+                else:
+                    raise RuntimeError(
+                        'LMD file does not contain FCS3.1, FCS3.0, or FCS2.0 compliantportion. Errors:\n' +
+                        '\n'.join(f'  v{v}: {msg}' for v, msg in errors.items())
+                    )
 
             # Annotate filename in uns of anndata
             adata.uns['filename'] = fn
@@ -231,10 +249,12 @@ class FlowDataManager:
 
     @staticmethod
     def _determine_filetype(filename: str) -> str:
-        if filename.endswith(".fcs"):
-            data_file_type = "fcs"
-        elif filename.endswith(".csv"):
-            data_file_type = "csv"
+        if filename.endswith('.fcs')  or filename.endswith('.FCS'):
+            data_file_type = 'fcs'
+        elif filename.endswith('.csv') or filename.endswith('.CSV'):
+            data_file_type = 'csv'
+        elif filename.endswith('.lmd') or filename.endswith('.LMD'):
+            data_file_type = 'lmd'
         else:
             data_file_type = "unknown"
         return data_file_type
