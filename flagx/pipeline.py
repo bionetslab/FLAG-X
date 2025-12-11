@@ -25,7 +25,7 @@ class GatingPipeline:
 
     This class orchestrates the full workflow:
 
-    1. **Load raw FCS/CSV files**
+    1. **Load raw FCS/CSV/LMD files**
     2. **Align channel names**
     3. **(Optional) Relabel training data**
     4. **(Optional) Preprocess data sample-wise**
@@ -41,7 +41,7 @@ class GatingPipeline:
     Attributes:
         train_data_file_path (str or None): Path to directory containing training data. Defaults to CWD.
         train_data_file_names (list[str] or None): Specific training filenames to load. If ``None``, uses all files in directory.
-        train_data_file_type (Literal['fcs','csv'] or None): Input file type. If ``None``, inferred from first filename.
+        train_data_file_type (Literal['fcs','csv', 'lmd'] or None): Input file type. If ``None``, inferred from first filename.
         save_path (str or None): Output directory for pipeline metadata and results. If ``None``, defaults to CWD.
         channels (list[int] or list[str] or None): Indices or names of channels to train on.
         label_key (int, str, or None): Key to labels. Can be column index in ``.X``, channel name (key in ``var_names``), or key to ``.obs``. If None, only unsupervised SOM training is available.
@@ -65,7 +65,7 @@ class GatingPipeline:
             self,
             train_data_file_path: Union[str, None] = None,   # default: cwd
             train_data_file_names: Union[List[str], None] = None,  # default: listdir(path)
-            train_data_file_type: Union[Literal['fcs', 'csv'], None] = None,
+            train_data_file_type: Union[Literal['fcs', 'csv', 'lmd'], None] = None,
 
             save_path: Union[str, None] = None,
 
@@ -95,7 +95,7 @@ class GatingPipeline:
         Args:
             train_data_file_path (str or None): Path to directory containing training data. Defaults to CWD.
             train_data_file_names (list[str] or None): Specific training filenames to load. If None, uses all files in directory.
-            train_data_file_type (Literal['fcs','csv'] or None): Input file type. If None, inferred from first filename.
+            train_data_file_type (Literal['fcs','csv', 'lmd'] or None): Input file type. If None, inferred from first filename.
             save_path (str or None): Output directory for pipeline metadata and results. If None, defaults to CWD.
             channels (list[int] or list[str] or None): Indices or names of channels to train on.
             label_key (int, str, or None): Key to labels in `.X`, `.obs`, or `.layers`. If None, only unsupervised SOM training is available.
