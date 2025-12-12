@@ -97,12 +97,6 @@ Full documentation is available on [Read the Docs](https://flag-x.readthedocs.io
   flagx load-infer-save --config ./example_configs/load_infer_save_som_config.yml
   ```
 
-
-## To do
-- [ ] Add functionality to apply compensation
-- [ ] Add functionality to load lmd files
-
-
 ## License
 
 This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
