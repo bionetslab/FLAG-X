@@ -65,13 +65,10 @@ Installation
 
   Create environment, install flagx, and activate::
 
-      mamba create -n flagx -y
+      mamba create -n flagx-env -y
+      mamba activate flagx-env
       mamba install flagx -y
-      mamba activate flagx
 
-  To enable data export to FCS, install ``flowio`` using pip::
-
-      pip install flowio
 
   To enable PyTorch-based functionality (e.g., MLPClassifier), install ``torch`` according to your system's requirements (see: `PyTorch get started <https://pytorch.org/get-started/locally/>`_).
 
