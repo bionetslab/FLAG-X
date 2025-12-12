@@ -37,16 +37,13 @@ FLAG-X provides a streamlined pipeline and a command line interface (CLI) for us
   
   channel_priority: strict
   ```
-  Create environment, install flagx, and activate:
+  Create environment, activate, and install flagx:
   ```console
-  mamba create -n flagx -y
-  mamba install flagx
-  mamba activate flagx
+  mamba create -n flagx-env -y
+  mamba activate flagx-env
+  mamba install flagx -y
   ```
-  To enable data export to FCS, install `flowio` using pip:
-  ```console
-  pip install flowio
-  ```
+  
   To enable PyTorch-based functionality (e.g. MLPClassifier) install `torch` according to your system's requirements (see: [PyTorch get started](https://pytorch.org/get-started/locally/)).
   
   For example:
