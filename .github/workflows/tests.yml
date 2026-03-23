@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,6 +16,7 @@ jobs:
         shell: bash -l {0}
 
     steps:
+      # -------------------- Checkout --------------------
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -48,42 +52,60 @@ jobs:
       # -------------------- Run Tests --------------------
       - name: Run tests with coverage
         run: pytest --cov=. --cov-report=xml --cov-report=term
+        continue-on-error: true
 
-      # -------------------- Badges --------------------
-      - name: Generate passing test badge
-        uses: emibcn/badge-action@v1.2.1
-        if: ${{ success() }}
-        with:
-          label: "tests"
-          status: "passing"
-          color: "green"
-          path: "badges/test-status.svg"
+      # -------------------- Determine test result --------------------
+      - name: Determine test result
+        id: test_result
+        run: |
+          if [ "${{ steps.tests.outcome }}" = "success" ]; then
+            echo "status=passing" >> $GITHUB_OUTPUT
+            echo "color=green" >> $GITHUB_OUTPUT
+          else
+            echo "status=failing" >> $GITHUB_OUTPUT
+            echo "color=red" >> $GITHUB_OUTPUT
+          fi
 
-      - name: Generate failing test badge
-        uses: emibcn/badge-action@v1.2.1
-        if: ${{ failure() }}
-        with:
-          label: "tests"
-          status: "failing"
-          color: "red"
-          path: "badges/test-status.svg"
-
+      # -------------------- Extract coverage --------------------
       - name: Extract coverage percentage
         id: coverage
         run: |
           value=$(xmllint --xpath "string(/coverage/@line-rate)" coverage.xml)
           percent=$(printf "%.0f" "$(echo "$value * 100" | bc)")
           echo "percent=$percent" >> $GITHUB_OUTPUT
+      
+      # -------------------- Coverage color --------------------
+      - name: Determine coverage color
+        id: coverage_color
+        run: |
+          p=${{ steps.coverage.outputs.percent }}
+          if [ "$p" -ge 80 ]; then c=green
+          elif [ "$p" -ge 50 ]; then c=yellow
+          else c=red
+          fi
+          echo "color=$c" >> $GITHUB_OUTPUT
 
+      # -------------------- Generate test badge --------------------
+      - name: Generate test badge
+        uses: emibcn/badge-action@v1.2.1
+        with:
+          label: "tests"
+          status: "${{ steps.test_result.outputs.status }}"
+          color: "${{ steps.test_result.outputs.color }}"
+          path: "badges/test-status.svg"
+
+      # -------------------- Generate coverage badge --------------------
       - name: Generate coverage badge
         uses: emibcn/badge-action@v1.2.1
         with:
           label: "coverage"
           status: "${{ steps.coverage.outputs.percent }}%"
-          color: "green"
+          color: "${{ steps.coverage_color.outputs.color }}"
           path: "badges/coverage.svg"
 
+      # -------------------- Commit badges (always runs) --------------------
       - name: Commit badges
+        if: always() && github.actor != 'github-actions[bot]'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "Update test and coverage badges"
