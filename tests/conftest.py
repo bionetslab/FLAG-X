@@ -5,18 +5,22 @@ from pathlib import Path
 from flagx.gating import SomClassifier, MLPClassifier
 from flagx.io import FlowDataManager
 
+
 TEST_DATA_DIR = Path(__file__).parent / 'test_data'
 N_FILES = 5
+
 
 @pytest.fixture
 def small_X():
     np.random.seed(42)
     return np.random.rand(100, 4)
 
+
 @pytest.fixture
 def small_y():
     np.random.seed(42)
     return np.random.choice([0, 1], size=100)
+
 
 @pytest.fixture(
     params=[
@@ -33,15 +37,18 @@ def som_classifier(request):
         verbosity=0,
     )
 
+
 @pytest.fixture
 def large_X():
     np.random.seed(42)
     return np.random.rand(110000, 4)
 
+
 @pytest.fixture
 def large_y():
     np.random.seed(42)
     return np.random.choice([0, 1], size=110000)
+
 
 @pytest.fixture(
     params=[
@@ -58,6 +65,7 @@ def large_som_classifier(request):
         verbosity=0,
     )
 
+
 @pytest.fixture
 def mlp_classifier():
     return MLPClassifier(
@@ -66,9 +74,11 @@ def mlp_classifier():
         verbosity=0,
     )
 
+
 @pytest.fixture(scope='session', params=['csv', 'fcs'])
 def data_format(request):
     return request.param
+
 
 @pytest.fixture(scope='function')
 def test_files(data_format):
