@@ -6,10 +6,10 @@ from sklearn.exceptions import NotFittedError
 
 def test_fit_sets_is_fitted(som_classifier, small_X, small_y):
     som_classifier.fit(small_X, small_y)
-
+    expected_shape = som_classifier.som_dimensions + (small_X.shape[1], )
     assert som_classifier.is_fitted_
     assert som_classifier.n_features_in_ == small_X.shape[1]
-    assert som_classifier.som_.codebook.shape == (2, 2, small_X.shape[1])
+    assert som_classifier.som_.codebook.shape == expected_shape
 
 
 def test_fit_dimension_mismatch(som_classifier, small_y):
@@ -20,8 +20,9 @@ def test_fit_dimension_mismatch(som_classifier, small_y):
 
 def test_annotate_creates_labels(som_classifier, small_X, small_y):
     som_classifier.fit(small_X, small_y)
+    expected_shape = som_classifier.som_dimensions
     assert som_classifier._labeled_data
-    assert som_classifier.som_unit_labels_.shape == (2, 2)
+    assert som_classifier.som_unit_labels_.shape == expected_shape
     assert set(som_classifier.som_unit_labels_.flatten()).issubset({0, 1})
 
 
@@ -65,8 +66,8 @@ def test_transform_shapes(som_classifier, small_X, small_y):
 def test_unit_impurity_matrix_shape(som_classifier, small_X, small_y):
     som_classifier.fit(small_X, small_y)
     impurity = som_classifier.unit_impurity()
-
-    assert impurity.shape == (2, 2)
+    expected_shape = som_classifier.som_dimensions
+    assert impurity.shape == expected_shape
     assert np.all(impurity >= 0)
 
 
@@ -133,9 +134,9 @@ def test_predict_proba_unlabeled_training_warns(som_classifier, small_X):
 def test_annotation_zero_support_units(som_classifier, small_X, small_y):
     # Fewer training samples than SOM units => some units get zero support
     som_classifier.fit(small_X[0:3, :], small_y[0:3])
-
     labels = som_classifier.som_unit_labels_
-    assert labels.shape == (2, 2)
+    expected_shape = som_classifier.som_dimensions
+    assert labels.shape == expected_shape
     # Some will be -1
     assert -1 in labels
 
@@ -154,12 +155,11 @@ def test_transform_single_sample(som_classifier, small_X, small_y):
 
 def test_unit_impurity_gini_vs_entropy_positive(som_classifier, small_X, small_y):
     som_classifier.fit(small_X, small_y)
-
     ent = som_classifier.unit_impurity('entropy')
     gin = som_classifier.unit_impurity('gini')
-
-    assert ent.shape == (2, 2)
-    assert gin.shape == (2, 2)
+    expected_shape = som_classifier.som_dimensions
+    assert ent.shape == expected_shape
+    assert gin.shape == expected_shape
     assert np.all(ent >= 0)
     assert np.all(gin >= 0)
 
@@ -221,8 +221,8 @@ def test_score_with_sample_weights(som_classifier, small_X, small_y):
 def test_activation_frequencies_shape(som_classifier, small_X, small_y):
     som_classifier.fit(small_X, small_y)
     freqs = som_classifier.activation_frequencies(small_X)
-
-    assert freqs.shape == (2, 2)
+    expected_shape = som_classifier.som_dimensions
+    assert freqs.shape == expected_shape
     assert np.isclose(freqs.sum(), 1.0, atol=1e-6)
 
 
@@ -301,7 +301,7 @@ def test_surface_state_and_bmu_somoclu_vs_custom_small(som_classifier, small_X, 
     surface_state_somoclu = som.get_surface_state(data=small_X)
     surface_state_custom = som_classifier._custom_get_surface_state(data=small_X)
 
-    bmus_somoclu = som.get_bmus(activation_map=surface_state_somoclu)
+    bmus_somoclu = som.get_bmus(activation_map=surface_state_somoclu, order='C')
     bmus_custom = som_classifier._custom_get_bmus(activation_map=surface_state_custom)
 
     assert np.allclose(surface_state_somoclu, surface_state_custom)
@@ -317,7 +317,7 @@ def test_surface_state_and_bmu_somoclu_vs_custom(
     surface_state_somoclu = som.get_surface_state(data=large_X)
     surface_state_custom = large_som_classifier._custom_get_surface_state(data=large_X)
 
-    bmus_somoclu = som.get_bmus(activation_map=surface_state_somoclu)
+    bmus_somoclu = som.get_bmus(activation_map=surface_state_somoclu, order='C')
     bmus_custom = large_som_classifier._custom_get_bmus(activation_map=surface_state_custom)
 
     assert np.allclose(surface_state_somoclu, surface_state_custom)

@@ -148,8 +148,8 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
     # ### _initialize_som(), _set_radius0() ############################################################################
     def _initialize_som(self):
         self.som_ = Somoclu(
-            n_columns=self.som_dimensions[0],
-            n_rows=self.som_dimensions[1],
+            n_columns=self.som_dimensions[1],
+            n_rows=self.som_dimensions[0],
             gridtype=self.som_grid_type,
             maptype=self.som_topology,
             neighborhood=self.neighborhood,
@@ -598,7 +598,7 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
         bmus = self._custom_get_bmus(activation_map=self._custom_get_surface_state(data=X))
 
         # Extract BMU codebook vectors
-        bmu_vectors = self.som_.codebook[bmus[:, 1], bmus[:, 0], :]  # Shape: (n_samples, n_features)
+        bmu_vectors = self.som_.codebook[bmus[:, 0], bmus[:, 1], :]  # Shape: (n_samples, n_features)
 
         # Compute Euclidean distances
         quantization_error = np.linalg.norm(X - bmu_vectors, axis=1)
@@ -630,11 +630,13 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
                'Topographical error calculation is currently only implemented for planar and rectangular SOMs'
            )
 
-        surface_state = self.som_.get_surface_state(data=X)
-        bmu1 = self.som_.get_bmus(surface_state)
-        bmu2 = SomClassifier._get_ith_bmus(surface_state=surface_state, i=2, som_dim0=self.som_dimensions[0])
+        # bmu1 = self.som_.get_bmus(surface_state)
+        # surface_state = self.som_.get_surface_state(data=X)
 
-        adjacency_bool = SomClassifier._check_adjacency(bmus0=bmu1, bmus1=bmu2)
+        surface_state = self._custom_get_surface_state(data=X)
+        bmus = self._custom_get_bmus(activation_map=surface_state)
+        ith_bmus = self._get_ith_bmus(surface_state=surface_state, i=2, num_cols_som_grid=self.som_dimensions[1])
+        adjacency_bool = self._check_adjacency(bmus0=bmus, bmus1=ith_bmus)
 
         return np.logical_not(adjacency_bool).mean()
 
@@ -861,8 +863,9 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
             self,
             data: np.ndarray,
     ):
-        # ### Reshape codebook for efficient computation
+        # --- Reshape codebook for efficient computation,
         # (somdim0, somdim1, n_features) -> (somdim0 * somdim1, n_features)
+        # row-major (C-order) -> row_idx = row * n_columns + col
 
         codebook_reshaped = self.som_.codebook.reshape(-1, self.som_.codebook.shape[2])
 
@@ -898,45 +901,36 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
             self,
             activation_map: np.ndarray,
     ):
-        # Shape activation map: (n_events, somdim0 * somdim1)
+        # Shape of activation map:
+        # (n_events, somdim0 * somdim1),
+        # row-major (C-order) -> 2nd dim in surface state ~= row * n_columns + col in original grid
 
-        # ### Find position in the SOM grid of the minimum value for each row
+        # --- Find position in the SOM grid of the minimum value for each row
         bmu_indices = np.argmin(activation_map, axis=1)
-        j_s, i_s = np.divmod(bmu_indices, self.som_dimensions[1])
-        return np.column_stack((i_s, j_s))
+        num_cols_som_grid = self.som_dimensions[1]
+        rows, cols = np.divmod(bmu_indices, num_cols_som_grid)
+        # Divmod returns: (val // num_cols, val % num_cols) = row, col
+        return np.column_stack((rows, cols))
 
     @staticmethod
     def _get_ith_bmus(
             surface_state: np.ndarray,
             i: int,
-            som_dim0: int,
+            num_cols_som_grid: int,
     ) -> np.ndarray:
+        
+        if i < 1 or i > surface_state.shape[1]:
+            raise ValueError(f'i should be between 1 and {surface_state.shape[1]}, got {i}')
 
-        # Initialize original indices row-wise
-        original_indices = np.tile(np.arange(surface_state.shape[1]), (surface_state.shape[0], 1))
-        # Iteratively exclude the largest values row-wise
-        for k in range(i - 1):
-            # Find the max indices row-wise
-            dummy_surface_state = surface_state.copy()
+        # Get row-wise index of unit with the ith smallest distance to event
+        idx = np.argpartition(surface_state, i - 1, axis=1)[:, i - 1]
 
-            max_indices = np.argmax(dummy_surface_state, axis=1)
-            # Create a mask for all rows
-            mask = np.ones_like(surface_state, dtype=bool)
-            mask[np.arange(surface_state.shape[0]), max_indices] = False  # Exclude the max values
-            # Update surface_state row-wise
-            surface_state = surface_state[mask].reshape(surface_state.shape[0], surface_state.shape[1] - 1)
-            # Update the original indices row-wise
-            original_indices = original_indices[mask].reshape(original_indices.shape[0], original_indices.shape[1] - 1)
-
-        # Get the indices of the i-th largest value row-wise
-        ith_indices_new = np.argmax(surface_state, axis=1)
-        # Convert to original indices row-wise
-        ith_indices = original_indices[np.arange(original_indices.shape[0]), ith_indices_new]
         # Convert linear indices to 2D grid coordinates
-        i_idxs = ith_indices // som_dim0
-        j_idxs = ith_indices % som_dim0
+        row_idxs = idx // num_cols_som_grid
+        col_idxs = idx % num_cols_som_grid
+
         # Combine into BMU coordinates
-        ibmus = np.column_stack((i_idxs, j_idxs))
+        ibmus = np.column_stack((row_idxs, col_idxs))
 
         return ibmus
 
@@ -1013,7 +1007,8 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
             bmus: np.ndarray,
             start_from: int = 0,
     ):
-        pos = bmus[:, 0] * self.som_dimensions[0] + bmus[:, 1] + start_from
+        num_cols_som_grid = self.som_dimensions[1]
+        pos = bmus[:, 0] * num_cols_som_grid + bmus[:, 1] + start_from
         return pos
 
     @staticmethod

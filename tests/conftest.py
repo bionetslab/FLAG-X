@@ -18,10 +18,17 @@ def small_y():
     np.random.seed(42)
     return np.random.choice([0, 1], size=100)
 
-@pytest.fixture
-def som_classifier():
+@pytest.fixture(
+    params=[
+        {'som_dimensions': (2, 2)},
+        {'som_dimensions': (2, 3)},
+        {'som_dimensions': (3, 2)},
+    ],
+    ids=lambda p: f'dims={p['som_dimensions']}'
+)
+def som_classifier(request):
     return SomClassifier(
-        som_dimensions=(2, 2),
+        som_dimensions=request.param['som_dimensions'],
         n_epochs=2,
         verbosity=0,
     )
@@ -36,10 +43,17 @@ def large_y():
     np.random.seed(42)
     return np.random.choice([0, 1], size=110000)
 
-@pytest.fixture
-def large_som_classifier():
+@pytest.fixture(
+    params=[
+        {'som_dimensions': (11, 11)},
+        {'som_dimensions': (12, 11)},
+        {'som_dimensions': (11, 12)},
+    ],
+    ids=lambda p: f'dims={p['som_dimensions']}'
+)
+def large_som_classifier(request):
     return SomClassifier(
-        som_dimensions=(11, 11),
+        som_dimensions=request.param['som_dimensions'],
         n_epochs=2,
         verbosity=0,
     )
