@@ -71,6 +71,7 @@ def mlp_classifier():
     return MLPClassifier(
         layer_sizes=(8, 4, 2),
         n_epochs=2,
+        validation_fraction=0.0,
         verbosity=0,
     )
 

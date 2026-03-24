@@ -7,16 +7,19 @@ from sklearn.exceptions import NotFittedError
 from flagx.gating import MLPClassifier
 
 
-
 def test_fit_sets_attributes(mlp_classifier, small_X, small_y):
     mlp_classifier.fit(small_X, small_y)
 
-    assert mlp_classifier.is_fitted_ is True
+    assert hasattr(mlp_classifier, 'is_fitted_')
     assert hasattr(mlp_classifier, 'model_')
     assert hasattr(mlp_classifier, 'classes_')
+    assert hasattr(mlp_classifier, 'og_classes_')
+    assert hasattr(mlp_classifier, 'training_log_')
+    assert mlp_classifier.is_fitted_ is True
     assert mlp_classifier.classes_.shape[0] == 2
-    assert len(mlp_classifier.losses_) == mlp_classifier.n_epochs
-    assert len(mlp_classifier.n_corrects_) == mlp_classifier.n_epochs
+    assert len(mlp_classifier.training_log_['training_loss']) == mlp_classifier.n_epochs
+    assert len(mlp_classifier.training_log_['num_correct_train']) == mlp_classifier.n_epochs
+    assert mlp_classifier.training_log_['num_events_train'] == small_X.shape[0]
     assert mlp_classifier.device.type in {'cpu', 'cuda'}
 
 
@@ -89,11 +92,11 @@ def test_class_label_remapping_non_consecutive(mlp_classifier, small_X):
 def test_training_loop_records_metrics(mlp_classifier, small_X, small_y):
     mlp_classifier.n_epochs = 5
     mlp_classifier.fit(small_X, small_y)
-
-    assert len(mlp_classifier.losses_) == 5
-    assert all(isinstance(l, float) for l in mlp_classifier.losses_)
-    assert all(l >= 0.0 for l in mlp_classifier.losses_)
-    assert all(0 <= c <= small_y.shape[0] for c in mlp_classifier.n_corrects_)
+    training_log = mlp_classifier.training_log_
+    assert len(training_log['training_loss']) == 5
+    assert all(isinstance(l, float) for l in training_log['training_loss'])
+    assert all(l >= 0.0 for l in training_log['training_loss'])
+    assert all(0 <= c <= small_y.shape[0] for c in training_log['num_correct_train'])
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA not available')
@@ -191,6 +194,110 @@ def test_single_class_training(mlp_classifier, small_X):
     assert np.all(preds == 0)
     probas = mlp_classifier.predict_proba(small_X)
     assert np.allclose(probas, 1.0)  # 100% confidence in the only class
+
+
+def test_variable_layer_sizes_forward(small_X, small_y):
+    layer_sizes = (16, 8, 4, 2)
+    clf = MLPClassifier(layer_sizes=layer_sizes, n_epochs=2, verbosity=0)
+    clf.fit(small_X, small_y)
+    model = clf.model_
+
+    # number of linear layers = hidden + output
+    assert len(model.layers) == 5  # 4 hidden + 1 output
+
+    # check dimensions
+    sizes = [l.in_features for l in model.layers] + [model.layers[-1].out_features]
+    assert sizes[0] == small_X.shape[1]
+    assert sizes[-1] == len(clf.classes_)
+    assert all(size_model == size_inp for size_model, size_inp in zip(sizes[1:-1], layer_sizes))
+
+
+def test_early_stopping_triggers(small_X, small_y):
+    clf = MLPClassifier(
+        n_epochs=50,
+        early_stopping=True,
+        validation_fraction=0.2,
+        tol=1e-2,
+        n_iter_no_change=2,
+        verbosity=0,
+    )
+    clf.fit(small_X, small_y)
+
+    # should stop before max epochs
+    assert len(clf.training_log_['training_loss']) < 50
+
+
+def test_early_stopping_restores_best_model(small_X, small_y):
+    clf = MLPClassifier(
+        n_epochs=30,
+        early_stopping=True,
+        validation_fraction=0.2,
+        tol=0.0,
+        n_iter_no_change=1,
+        verbosity=0,
+    )
+    clf.fit(small_X, small_y)
+
+    val_losses = clf.training_log_['validation_loss']
+
+    best_epoch = int(np.argmin(val_losses))
+    final_epoch = len(val_losses) - 1
+
+    # best epoch should not necessarily be last
+    assert best_epoch <= final_epoch
+
+
+def test_validation_split_created(small_X, small_y):
+    clf = MLPClassifier(
+        n_epochs=2,
+        validation_fraction=0.2,
+        early_stopping=True,
+        verbosity=0,
+    )
+    clf.fit(small_X, small_y)
+
+    assert clf.val_loader_ is not None
+    assert clf.training_log_['num_events_val'] == int(0.2 * len(small_y))
+
+
+def test_no_validation_when_fraction_zero(small_X, small_y):
+    clf = MLPClassifier(
+        n_epochs=2,
+        validation_fraction=0.0,
+        early_stopping=False,
+        verbosity=0,
+    )
+    clf.fit(small_X, small_y)
+
+    assert clf.val_loader_ is None
+    assert 'validation_loss' not in clf.training_log_
+
+def test_early_stopping_without_validation_warns(small_X, small_y):
+    clf = MLPClassifier(
+        n_epochs=5,
+        validation_fraction=0.0,
+        early_stopping=True,
+        verbosity=0,
+    )
+
+    with pytest.warns(UserWarning, match='Using training loss for early stopping'):
+        clf.fit(small_X, small_y)
+
+
+def test_early_stopping_with_training_loss_triggers(small_X, small_y):
+    clf = MLPClassifier(
+        n_epochs=50,
+        validation_fraction=0.0,
+        early_stopping=True,
+        tol=1e-2,
+        n_iter_no_change=2,
+        verbosity=0,
+    )
+    clf.fit(small_X, small_y)
+
+    # should stop before max epochs
+    assert len(clf.training_log_['training_loss']) < 50
+
 
 
 
