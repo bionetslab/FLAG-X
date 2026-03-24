@@ -24,7 +24,7 @@ def small_y():
         {'som_dimensions': (2, 3)},
         {'som_dimensions': (3, 2)},
     ],
-    ids=lambda p: f'dims={p['som_dimensions']}'
+    ids=lambda p: f'dims={p["som_dimensions"]}'
 )
 def som_classifier(request):
     return SomClassifier(
@@ -49,7 +49,7 @@ def large_y():
         {'som_dimensions': (12, 11)},
         {'som_dimensions': (11, 12)},
     ],
-    ids=lambda p: f'dims={p['som_dimensions']}'
+    ids=lambda p: f'dims={p["som_dimensions"]}'
 )
 def large_som_classifier(request):
     return SomClassifier(
