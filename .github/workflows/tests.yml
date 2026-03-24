@@ -51,6 +51,7 @@ jobs:
 
       # -------------------- Run Tests --------------------
       - name: Run tests with coverage
+        id: tests
         run: pytest --cov=. --cov-report=xml --cov-report=term
         continue-on-error: true
 
