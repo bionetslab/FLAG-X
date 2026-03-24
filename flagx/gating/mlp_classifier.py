@@ -35,13 +35,6 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
     For model training CrossEntropyLoss and the Adam optimizer are used.
 
     Attributes:
-        layer_sizes (Tuple[int, ...]): Sizes of the hidden layers in the fully connected neural network.
-        n_epochs (int): Number of training epochs.
-        loss_params (dict[str, Any] or None): Parameters passed to the PyTorch's CrossEntropyLoss.
-        optimizer_params (dict[str, Any] or None): Parameters passed to the PyTorch's Adam optimizer. If None, defaults to ``{'lr': 0.001}``.
-        data_loader_params (dict[str, Any] or None): Parameters passed to the PyTorch DataLoader. If None, defaults to ``{'batch_size': 128, 'shuffle': True, 'num_workers': 6}``.
-        device (str or None): Device to use for training (e.g., ``'cpu'``, ``'cuda'``, ``'cuda:0'``). If None, CUDA is used when available, otherwise falls back to CPU.
-        verbosity (int): Verbosity level for training logs.
         classes_ (np.ndarray or None): Class labels after re-indexing to integers starting from 0.
         class_counts_ (np.ndarray or None): Class counts from the training data.
         og_classes_ (np.ndarray or None): Original class labels before re-indexing.
@@ -73,10 +66,20 @@ class MLPClassifier(BaseEstimator, ClassifierMixin):
         Args:
             layer_sizes (Tuple[int, ...]): Sizes of the hidden layers in the fully connected neural network.
             n_epochs (int): Number of training epochs.
-            data_loader_params (dict[str, Any] or None): Parameters passed to the PyTorch DataLoader. If None, defaults to ``{'batch_size': 128, 'shuffle': True, 'num_workers': 6}``.
+            loss_params (dict[str, Any] or None): Parameters passed to the PyTorch's CrossEntropyLoss.
+            optimizer_params (dict[str, Any] or None): Parameters passed to the PyTorch's Adam optimizer. If None, defaults to ``{'lr': 0.001}``.
+            data_loader_params (dict[str, Any] or None): Parameters passed to the PyTorch DataLoader. If None, defaults to ``{'batch_size': 128, 'shuffle': True, 'num_workers': 1}``.
+            validation_fraction (float): Fraction of the training data used as validation set. Defaults to 0.1.
+            early_stopping (bool): Whether early stopping is used or not. If `early_stopping` is `True` and `validation_fraction=0.0`, the training loss is used as an early stopping criterion. Defaults to False.
+            tol (float): Tolerance for early stopping. When the validation/training loss is not improving by at least `tol` for `n_iter_no_change` consecutive iterations, training is stopped early.
+            n_iter_no_change (int): Maximum number of epochs to not meet `tol` improvement.
             device (str or None): Device to use for training (e.g., ``'cpu'``, ``'cuda'``, ``'cuda:0'``). If None, CUDA is used when available, otherwise falls back to CPU.
             verbosity (int): Verbosity level for training logs.
         """
+
+        if validation_fraction < 0 or validation_fraction > 1:
+            raise ValueError(f'`validation_fraction` must be in [0, 1], got {validation_fraction}.')
+
         super().__init__()
         self.layer_sizes = layer_sizes
         self.n_epochs = n_epochs

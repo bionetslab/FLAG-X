@@ -53,11 +53,6 @@ class FlowDataManager:
     - Export datasets to disk: ``save_to_numpy_files()``
 
     Attributes:
-        data_file_names (List[str]): List of input filenames as provided during initialization.
-        data_file_type (str or None): Input file type ('fcs' or 'csv'). If None, inferred from the first file.
-        data_file_path (str): Path to the directory containing the raw data files.
-        save_path (str): Directory used for saving exported or intermediate results.
-        verbosity (int): Logging level. 0: silent, 1: warnings, 2+: info/debug.
         invalid_files_ (list or None): Filenames skipped due to incompatible type.
         anndata_list_ (list or None): List of loaded AnnData objects.
         sample_sizes_ (pd.DataFrame or None): Summary of sample sizes.

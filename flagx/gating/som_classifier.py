@@ -37,22 +37,6 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
         • Model saving and loading
 
     Attributes:
-        som_topology (Literal['planar', 'toroid']): SOM grid topology. Defaults to ``'planar'``.
-        som_grid_type (Literal['rectangular', 'hexagonal']): Grid layout type. Defaults to ``'rectangular'``.
-        som_dimensions (Tuple[int, int]): Dimensions of the SOM grid `(n_columns, n_rows)`. Defaults to ``(10, 10)``.
-        neighborhood (Literal['gaussian', 'bubble']): Neighborhood function type. Defaults to ``'gaussian'``.
-        gaussian_neighborhood_sigma (float or None): Sigma for Gaussian neighborhood function. Defaults to 0.1.
-        initialization (Literal['random', 'pca']): Codebook initialization method. Defaults to ``'pca'``.
-        initial_codebook (np.ndarray or None): Custom initialization of SOM weights. Defaults to None.
-        n_epochs (int): Number of SOM training epochs. Defaults to 100.
-        radius_0 (float): Initial neighborhood radius. Negative values are interpreted as fractions of the grid size. Defaults to -0.5.
-        radius_n (float): Final neighborhood radius. Defaults to 0.1.
-        radius_cooling (Literal['linear', 'exponential']): Radius decay schedule. Defaults to ``'exponential'``.
-        learning_rate_0 (float): Initial learning rate. Defaults to 0.1.
-        learning_rate_n (float): Final learning rate. Defaults to 0.001.
-        learning_rate_decay (Literal['linear', 'exponential']): Learning rate decay schedule. Defaults to ``'exponential'``.
-        unlabeled_label (Any): Label indicating unlabeled samples. Defaults to -999.
-        verbosity (int): Logging level. Defaults to 1.
         som_ (Somoclu): Trained SOM object.
         is_fitted_ (bool): Whether the model has been fitted.
         classes_ (np.ndarray or None): Class labels after re-indexing to integers starting from 0.

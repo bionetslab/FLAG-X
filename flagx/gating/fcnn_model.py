@@ -1,4 +1,5 @@
 
+import torch
 from typing import Tuple
 
 try:
@@ -32,9 +33,6 @@ class FCNNModel(nn.Module):
 
     Attributes:
         layers (nn.ModuleList): List of fully connected linear layers.
-
-    Returns:
-        torch.Tensor: Raw output logits with shape `(batch_size, out_size)`.
     """
 
     # Dimensions chosen as described in paper and
@@ -48,7 +46,17 @@ class FCNNModel(nn.Module):
             nn.Linear(sizes[i], sizes[i + 1]) for i in range(len(sizes) - 1)
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the FCNN model. ReLU activation is applied after each layer except after the output layer.
+
+        Args:
+            x (torch.Tensor): Input data tensor.
+
+        Returns:
+            torch.Tensor: Raw output logits with shape `(batch_size, out_size)`.
+
+        """
 
         # Apply ReLU to all but last layer
         for layer in self.layers[:-1]:
