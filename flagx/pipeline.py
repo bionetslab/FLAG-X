@@ -15,6 +15,7 @@ from typing import List, Tuple, Dict, Union, Any
 from typing_extensions import Literal
 
 from .io import FlowDataManager, export_to_fcs
+from .io.io_utils import get_numpy_data_matrix, get_numpy_label_vector
 from .gating import SomClassifier, MLPClassifier, TORCH_AVAILABLE as TORCH_AVAILABLE_GATING
 from .dimred import PCA, UMAP, TSNE, Isomap, LocallyLinearEmbedding, MDS, SpectralEmbedding
 
@@ -761,7 +762,7 @@ class GatingPipeline:
                 channels = list(range(data_list[0].n_vars))
 
         # Get single data matrix (concatenated from all samples)
-        data_array = FlowDataManager._get_numpy_data_matrix(
+        data_array = get_numpy_data_matrix(
             data_list=data_list,
             channels=channels,
             layer_key=layer_key,
@@ -770,7 +771,7 @@ class GatingPipeline:
         # Get label vector
         label_array = None
         if label_key is not None:
-            label_array = FlowDataManager._get_numpy_label_vector(
+            label_array = get_numpy_label_vector(
                 data_list=data_list,
                 label_key=label_key,
                 layer_key=label_layer_key,
