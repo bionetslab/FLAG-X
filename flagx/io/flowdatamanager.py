@@ -1,5 +1,6 @@
 
 import re
+import copy
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -13,7 +14,6 @@ import flowio
 
 from typing import Tuple, List, Dict, Union, Any
 from typing_extensions import Literal
-from readfcs import ReadFCS
 from sklearn.model_selection import train_test_split
 from matplotlib import colormaps
 
@@ -31,9 +31,6 @@ except Exception as e:
         "PyTorch is required for FlowDataManager.get_data_loader() but is not installed. The function is not available.\n"
         "Install according to your system's requirements (see: https://pytorch.org/get-started/locally/)."
     )
-
-
-
 
 
 class FlowDataManager:
@@ -171,14 +168,21 @@ class FlowDataManager:
     def load_data_files_to_anndata(
             self,
             reindex: bool = True,
-            fcs_version_lmd: Literal['3.1', '3.0', '2.0'] = '3.0'
+            fcs_version_lmd: Literal['3.1', '3.0', '2.0'] = '3.0',
+            read_csv_kwargs: Union[Dict[str, Any], None] = None,
     ) -> None:
         """
         Load all provided data files into AnnData objects.
 
-        FCS files are read using the `Pytometry` Python package and CSV files are read with `Pandas` before being wrapped into AnnData.
-        For LMD files the loader looks for a FCS3.1, FCS3.0, or FCS2.0 compliant file embedded in the LMD and loads the first found one to AnnData.
+        CSV files are read using Pandas. FCS and LMD files are parsed using the ``flowio`` Python package (https://github.com/whitews/FlowIO).
+        If a spillover matrix is present in the TEXT section of the FCS file, it is extracted and stored in ``adata.uns['meta']['spill']``.
+        For LMD files the loader looks for embedded FCS files and loads the one compliant with ``fcs_version_lmd``.
         Invalid files are skipped and recorded.
+
+        Args:
+            reindex (bool): Whether to reindex the AnnData.var and the spillover matrix with PnS. Defaults to True.
+            fcs_version_lmd: (str): FCS version to load. Should be one of: ``'3.1'``, ``'3.0'``, ``'2.0'``. Defaults to ``'3.0'``.
+            read_csv_kwargs (dict or None): Parameters passed on to ``Pandas.read_csv()``. Defaults to None.
 
         Raises:
             ValueError: If file type cannot be inferred for the first file.
@@ -220,7 +224,8 @@ class FlowDataManager:
             # Load data file to anndata
             data_path = os.path.join(self._data_file_path, fn)
             if self._data_file_type == 'csv':
-                df = pd.read_csv(data_path, dtype=np.float32)
+                params = dict() if read_csv_kwargs is None else read_csv_kwargs.copy()
+                df = pd.read_csv(data_path, **params)
                 adata = sc.AnnData(X=df.to_numpy())
                 adata.var_names = df.columns.copy()
             elif self._data_file_type == 'fcs':
