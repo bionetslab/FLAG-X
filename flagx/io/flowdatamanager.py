@@ -1,6 +1,4 @@
 
-import re
-import copy
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -16,6 +14,10 @@ from typing import Tuple, List, Dict, Union, Any
 from typing_extensions import Literal
 from sklearn.model_selection import train_test_split
 from matplotlib import colormaps
+from .io_utils import (
+    determine_filetype, flowdata_to_anndata, compensate, log10_w_cutoff, log10_w_custom_cutoffs, get_downsampling_bool,
+    get_numpy_data_matrix, get_numpy_label_vector, get_labels
+)
 
 try:
     from torch.utils.data import DataLoader
@@ -123,7 +125,6 @@ class FlowDataManager:
         self.test_data_ = None
         self.val_data_ = None
 
-    # ### Add attributes as immutable properties #######################################################################
     @property
     def data_file_names(self):
         # Read-only property for data file names.
@@ -164,7 +165,6 @@ class FlowDataManager:
             raise ValueError("'new_verbosity' must be an integer >= 0")
         self._verbosity = new_verbosity
 
-    # ### load_data_files_to_anndata() #################################################################################
     def load_data_files_to_anndata(
             self,
             reindex: bool = True,
@@ -197,7 +197,7 @@ class FlowDataManager:
 
         # If no filetype is passed, determine from ending of 1st file
         if self._data_file_type is None:
-            self._data_file_type = FlowDataManager._determine_filetype(filename=self._data_file_names[0])
+            self._data_file_type = determine_filetype(filename=self._data_file_names[0])
 
             if self._data_file_type == 'unknown':
                 raise ValueError(f"Unsupported or unknown file type for {self._data_file_names[0]}. "
@@ -210,7 +210,7 @@ class FlowDataManager:
         for fn in self._data_file_names:
 
             # Check the filetype of the input file
-            ft = FlowDataManager._determine_filetype(filename=fn)
+            ft = determine_filetype(filename=fn)
             if ft != self._data_file_type:
                 if self._verbosity >= 1:
                     warnings.warn(
@@ -240,7 +240,7 @@ class FlowDataManager:
                 )[0]
 
                 # Convert from flowio.FlowData to AnnData
-                adata = self._flowdata_to_anndata(flowdata=flowdata, reindex=reindex)
+                adata = flowdata_to_anndata(flowdata=flowdata, reindex=reindex)
 
             else:  # data_file_type == 'lmd'
 
@@ -263,177 +263,13 @@ class FlowDataManager:
                 flowdata = flowdatas[load_idx]
 
                 # Convert from flowio.FlowData to AnnData
-                adata = self._flowdata_to_anndata(flowdata=flowdata, reindex=reindex)
+                adata = flowdata_to_anndata(flowdata=flowdata, reindex=reindex)
 
             # Annotate filename in uns of anndata
             adata.uns['filename'] = fn
 
             self.anndata_list_.append(adata)
 
-    @staticmethod
-    def _determine_filetype(filename: str) -> str:
-        if filename.endswith('.fcs')  or filename.endswith('.FCS'):
-            data_file_type = 'fcs'
-        elif filename.endswith('.csv') or filename.endswith('.CSV'):
-            data_file_type = 'csv'
-        elif filename.endswith('.lmd') or filename.endswith('.LMD'):
-            data_file_type = 'lmd'
-        else:
-            data_file_type = "unknown"
-        return data_file_type
-
-    @staticmethod
-    def _flowdata_to_anndata(flowdata: flowio.FlowData, reindex: bool = False) -> sc.AnnData:
-
-        # Extract data matrix
-        data_mat = np.reshape(flowdata.events, (-1, flowdata.channel_count)).astype(np.float32)
-
-        # Extract meta data
-        meta_data = flowdata.text
-
-        # Convert metadata into dataframe
-        meta_data_df = FlowDataManager._flowdata_meta_data_dict_to_df(meta_data_dict=meta_data)
-
-        # Extract spillover matrix if present
-        spillover_df = None
-        for key in ['spill', 'spillover']:
-            try:
-                spillover_str = meta_data[key]
-                spillover_df = FlowDataManager._spillover_mat_from_str(spillover_str=spillover_str)
-            except KeyError:
-                continue
-        if spillover_df is None:
-            warnings.warn('No spillover matrix found.')
-        else:
-            # By convention spillover matrix should be annotated with PnN
-            spill_cols = spillover_df.columns.tolist()
-            pnn = meta_data_df['PnN'].tolist()
-
-            if not set(spill_cols).issubset(set(pnn)):
-
-                warnings.warn('Spillover columns do not match PnN. Attempting to interpret as index-based encoding.')
-
-                if all(str(c).isdigit() for c in spill_cols):
-                    idx_to_pnn = {
-                        str(i): meta_data_df.loc[i, 'PnN']
-                        for i in meta_data_df.index
-                    }
-                    missing = set(spill_cols) - set(idx_to_pnn.keys())
-                    if not missing:
-                        spillover_df.rename(index=idx_to_pnn, columns=idx_to_pnn, inplace=True)
-                    else:
-                        raise ValueError('Cannot align Spillover matrix and other metadata.')
-                else:
-                    raise ValueError('Cannot align Spillover matrix and other metadata.')
-
-        # Build the AnnData
-        meta_data_df.index = meta_data_df['PnN']
-        meta_data['spill'] = spillover_df
-        adata = sc.AnnData(
-            X=data_mat,
-            var=meta_data_df,
-            uns={'meta': meta_data, 'fcs_version': flowdata.version},
-        )
-
-        if reindex:
-
-            if 'PnS' not in meta_data_df.columns:
-                warnings.warn('PnS not found. Cannot reindex.')
-            else:
-                pnn = meta_data_df['PnN']
-                pns = meta_data_df['PnS']
-
-                new_index = pns.where(pns != '', pnn)
-
-                if not new_index.is_unique:
-                    warnings.warn('PnS not unique. Cannot reindex.')
-                else:
-                    # Reindex var
-                    adata.var.index = new_index
-
-                    # Reindex spillover matrix
-                    if spillover_df is not None:
-                        mapper = dict(zip(pnn, new_index))
-                        spillover_df = spillover_df.rename(index=mapper, columns=mapper)
-                        adata.uns['meta']['spill'] = spillover_df
-
-        return adata
-
-    @staticmethod
-    def _flowdata_meta_data_dict_to_df(meta_data_dict: Dict[str, Any]) -> pd.DataFrame:
-
-        # Extract PnXYZ entries and store (n, value) tuples in dict
-        channel_groups = dict()
-        for key, val in meta_data_dict.items():
-
-            match = re.match(r'^p(\d+)([a-z]+)$', key.lower())
-            if not match:
-                continue
-
-            idx, suffix = int(match.group(1)), match.group(2)
-
-            group_key = f'Pn{suffix.upper()}'
-
-            channel_groups.setdefault(group_key, []).append((idx, val))
-
-        # Raise error if PnN is missing
-        if 'PnN' not in channel_groups:
-            raise ValueError('PnN (channel names) missing')
-
-        # Convert groups to dataframes and change dtype
-        dfs = []
-        for key, group in channel_groups.items():
-            df = pd.DataFrame(group, columns=['n', key]).set_index('n')
-
-            series = df[key]
-            numeric = pd.to_numeric(series, errors='coerce')  # Conversion fails -> Nan
-            if numeric.notna().all():  # Fully numeric -> distinguish int vs float
-                if (numeric % 1 == 0).all():
-                    df[key] = numeric.astype(int)
-                else:
-                    df[key] = numeric.astype(float)
-            else:
-                df[key] = series.astype(str)
-
-            dfs.append(df)
-
-        # Concatenate
-        df_groups = pd.concat(dfs, axis=1)
-
-        # Reorder
-        df_groups.insert(0, 'PnN', df_groups.pop('PnN'))
-        if 'PnS' in df_groups.columns:
-            df_groups.insert(1, 'PnS', df_groups.pop('PnS'))
-
-        # Replace NaN entries
-        df_groups.fillna('', inplace=True)
-
-        return df_groups
-
-    @staticmethod
-    def _spillover_mat_from_str(spillover_str: str) -> pd.DataFrame:
-
-        tokens = [t.strip().replace('\n', '') for t in spillover_str.split(',')]
-
-        num_channels = int(tokens[0])
-
-        expected_len = 1 + num_channels + num_channels * num_channels
-        if len(tokens) != expected_len:
-            raise ValueError('Malformed spillover string')
-
-        channels = tokens[1:num_channels + 1]
-
-        try:
-            values = list(map(float, tokens[num_channels + 1:]))
-        except ValueError:
-            raise ValueError('Spillover matrix contains non-numeric values')
-
-
-        so_mat = np.array(values).reshape((num_channels, num_channels))  # Reshape, order row mayor by default
-
-        return pd.DataFrame(so_mat, columns=channels, index=channels)
-
-    # check_sample_sizes() #############################################################################################
     def check_sample_sizes(
             self,
             filename_sample_sizes_df: Union[str, None] = None,
@@ -447,7 +283,7 @@ class FlowDataManager:
         Returns:
             None: Results stored in ``sample_sizes_``.
         """
-        self.sample_sizes_ = FlowDataManager.check_sample_sizes_worker(
+        self.sample_sizes_ = self.check_sample_sizes_worker(
             data_list=self.anndata_list_,
             save_path=self._save_path,
             filename_sample_sizes_df=filename_sample_sizes_df,
@@ -540,7 +376,6 @@ class FlowDataManager:
 
         return ax
 
-    # ### align_channel_names(), check_og_channel_names_df() ###########################################################
     def align_channel_names(
             self,
             reference_channel_names: Union[int, dict, None] = None,
@@ -562,7 +397,7 @@ class FlowDataManager:
         Returns:
             None: Log dataframe stored in ``og_channel_names_``.
         """
-        log_df = FlowDataManager.align_channel_names_worker(
+        log_df = self.align_channel_names_worker(
             data_list=self.anndata_list_,  # Work on anndata_list
             reference=reference_channel_names,  # Int = idx of anndata_list or dict: {og_cn: new_cn}, None = 1st entry of list as reference
             inplace=True,  # Work inplace, change anndata_list
@@ -655,7 +490,7 @@ class FlowDataManager:
         Returns:
             None
         """
-        FlowDataManager.check_og_channel_names_df_worker(
+        self.check_og_channel_names_df_worker(
             og_channel_names=self.og_channel_names_,
             verbosity=self.verbosity
         )
@@ -690,7 +525,7 @@ class FlowDataManager:
             None: The compensated data are written in place into ``anndata_list_`` and a dataframe with logs is saved to ``compensation_logs.csv``.
         """
 
-        log_df = FlowDataManager.sample_wise_compensation_worker(
+        log_df = self.sample_wise_compensation_worker(
             data_list=self.anndata_list_,
             spillover_key='spill',
             inplace=True,
@@ -718,7 +553,7 @@ class FlowDataManager:
 
             try:
 
-                FlowDataManager.compensate(
+                compensate(
                     adata=adata,
                     spillover_key=spillover_key,
                     uncompensated_layer_key=uncompensated_layer_key,
@@ -734,44 +569,6 @@ class FlowDataManager:
 
         return compensation_log_df if inplace else (data_list, compensation_log_df)
 
-    @staticmethod
-    def compensate(
-            adata: sc.AnnData,
-            spillover_key: str = 'spill',
-            uncompensated_layer_key: Union[str, None] = None,
-            inplace: bool = True,
-    ) -> Union[sc.AnnData, None]:
-
-        if not inplace:
-            adata = adata.copy()
-
-        # Retrieve spillover matrix
-        so_mat_df = adata.uns['meta'][spillover_key]
-        so_mat = so_mat_df.to_numpy()
-
-        channels_so_mat = so_mat_df.columns.tolist()
-        channels_data = adata.var.index.tolist()
-        intersection = set(channels_so_mat) & set(channels_data)
-        if not len(intersection) == len(channels_so_mat):
-            raise ValueError('Index of the spillover matrix does not match data index.')
-
-        # Extract the data matrix to be compensated
-        data_mat_sub = np.asarray(adata[:, channels_so_mat].X)
-
-        # Compute the compensated data matrix
-        # S^T * X^T = Y^T with S = spillover mat, Y = measured data, X = "true" data; solve for X
-        data_mat_sub_compensated = np.linalg.solve(so_mat.T, data_mat_sub.T).T
-
-        # Store uncompensated data in extra layer
-        if uncompensated_layer_key is not None:
-            adata.layers[uncompensated_layer_key] = adata.X.copy()
-
-        # Replace data with compensated data
-        adata.X[:, [adata.var.index.get_loc(c) for c in channels_so_mat]] = data_mat_sub_compensated
-
-        return adata if not inplace else None
-
-    # ### sample_wise_preprocessing() ##################################################################################
     def sample_wise_preprocessing(
             self,
             flavour: Literal[
@@ -786,8 +583,6 @@ class FlowDataManager:
         This method supports common cytometry transformations such as `arcsinh`, `logicle`,
         and `biexponential` scaling (For detailed documentation see: https://pytometry.netlify.app/api (11/27/2025).
         `Log10`-based transformations require user-specified cutoffs.  Fully custom preprocessing functions may also be supplied.
-
-
 
         Args:
             flavour (Literal['logicle', 'arcsinh', 'biexp', 'log10_w_cutoff', 'log10_w_custom_cutoffs', 'custom']): The transformation type to apply.
@@ -823,7 +618,7 @@ class FlowDataManager:
             None: The transformation is performed in place on each AnnData object.
         """
 
-        FlowDataManager.sample_wise_preprocessing_worker(
+        self.sample_wise_preprocessing_worker(
             data_list=self.anndata_list_,
             flavour=flavour,
             inplace=True,
@@ -854,14 +649,14 @@ class FlowDataManager:
         elif flavour == 'biexp':
             trafo_fct = pm.tl.normalize_biExp
         elif flavour == 'log10_w_cutoff':
-            trafo_fct = FlowDataManager.log10_w_cutoff
+            trafo_fct = log10_w_cutoff
         elif flavour == 'log10_w_custom_cutoffs':
             if 'cutoffs' not in kwargs:
                 raise ValueError(
                     "Missing required argument: 'cutoffs' (dict of {channel: cutoff}) must be provided in kwargs "
                     "for 'log10_w_custom_cutoffs' flavour."
                 )
-            trafo_fct = FlowDataManager.log10_w_custom_cutoffs
+            trafo_fct = log10_w_custom_cutoffs
         else:
             if 'preprocessing_method' not in kwargs:
                 raise ValueError(
@@ -884,49 +679,6 @@ class FlowDataManager:
         if not inplace:
             return data_list
 
-    @staticmethod
-    def log10_w_cutoff(adata: sc.AnnData, cutoff: float = 100):
-        """
-        Apply a `log10` transform to values above a cutoff and clamp smaller values.
-
-        Args:
-            adata (AnnData): Input AnnData object. Transformation is applied inplace.
-            cutoff (float): Minimum value for the transform. Values ≤ cutoff are set to `log10(cutoff)`.
-
-        Returns:
-            None
-        """
-        x = adata.X
-        x = np.log10(x, out=np.full(x.shape, np.log(cutoff), dtype=float), where=(x > cutoff))
-        adata.X = x
-
-    @staticmethod
-    def log10_w_custom_cutoffs(
-            adata: sc.AnnData,
-            cutoffs: Dict[str, int],
-    ):
-        """
-        Apply per-channel `log10` transforms using custom cutoffs.
-
-        Args:
-            adata (AnnData): Input AnnData object modified inplace.
-            cutoffs (dict): Mapping ``{channel_name: cutoff}``. Values above the cutoff are `log10`-transformed; values below are set to `log10(cutoff)`.
-
-        Returns:
-            None
-        """
-        x = adata.X.copy()
-        for channel, cutoff in cutoffs.items():
-            col_idx = np.where(adata.var_names == channel)[0][0]
-            x_col = adata.X[:, col_idx].copy()
-            mask = (x_col > cutoff)
-            x_col[mask] = np.log10(x_col[mask])
-            x_col[~mask] = np.log10(cutoff)
-            x[:, col_idx] = x_col
-
-        adata.X = x
-
-    # ### perform_data_split() #########################################################################################
     def perform_data_split(
             self,
             data_split: Union[Tuple[float, float], Tuple[float, float, float], pd.DataFrame] = (0.75, 0.25),
@@ -949,7 +701,7 @@ class FlowDataManager:
             None: Results stored in ``train_data_``, ``val_data_``, and ``test_data_``.
         """
 
-        dummy_data_split = FlowDataManager.perform_data_split_worker(
+        dummy_data_split = self.perform_data_split_worker(
             data_list=self.anndata_list_,
             data_split=data_split,
             filename_data_split=filename_data_split,
@@ -1131,7 +883,6 @@ class FlowDataManager:
 
         return data_split
 
-    # ### sample_wise_downsampling() ###################################################################################
     def sample_wise_downsampling(
             self,
             data_set: Literal['train', 'val', 'test', 'all'],
@@ -1180,7 +931,7 @@ class FlowDataManager:
             raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
 
         # Downsample selected data list inplace, if og is to be kept use the worker
-        FlowDataManager.sample_wise_downsampling_worker(
+        self.sample_wise_downsampling_worker(
             data_list=data_list,
             target_num_events=target_num_events,
             stratified=stratified,
@@ -1217,84 +968,21 @@ class FlowDataManager:
             tne = target_num_events if target_num_events >= 1 else round(adata.n_obs * target_num_events)
             # Get labels or number of events
             if stratified:
-                y = FlowDataManager._get_labels(adata=adata, label_key=label_key, layer_key=label_layer_key)
+                y = get_labels(adata=adata, label_key=label_key, layer_key=label_layer_key)
             else:
-                y = adata.n_obs
+                y = None
             # Get bool indicating which events to keep
-            ds_bool = FlowDataManager._get_downsampling_bool(y=y, target_num_events=tne, stratified=stratified)
+            ds_bool = get_downsampling_bool(
+                num_events=adata.n_obs,
+                target_num_events=tne,
+                stratification=y,
+            )
             # Update data_list
             data_list[i] = adata[ds_bool, :].copy()
 
         if not inplace:
             return data_list
 
-    @staticmethod
-    def _get_downsampling_bool(
-            y: Union[np.ndarray, int],
-            target_num_events: int,
-            stratified: bool = False
-    ) -> np.ndarray:
-
-        if not (isinstance(y, int) or isinstance(y, np.ndarray)):
-            raise ValueError("'y' must be int (no stratification) or numpy array (stratification).")
-
-        if isinstance(y, int) and stratified:
-            raise ValueError('y must be an array of labels and not an integer')
-
-        if isinstance(y, int) and not stratified:
-            num_events = y
-        else:
-            num_events = y.shape[0]
-
-        keep_mask = np.zeros(num_events, dtype=bool)
-
-        if target_num_events >= num_events:
-            keep_mask[:] = True
-
-        elif stratified:
-
-            unique_labels, counts = np.unique(y, return_counts=True)
-            selected_indices = []
-
-            for label, count in zip(unique_labels, counts):
-
-                # Get the number of events of this class to keep
-                target_num_events_class = int(round(target_num_events * (count / num_events)))
-                target_num_events_class = min(target_num_events_class, count)
-
-                # Get the indices where y == class
-                class_indices = np.where(y == label)[0]
-
-                # Randomly draw from the indices and append to list
-                if target_num_events_class > 0:
-                    selected = np.random.choice(class_indices, target_num_events_class, replace=False)
-                    selected_indices.extend(selected)
-
-            # Adjust the number of events to the exact desired number (account for rounding errors)
-            if len(selected_indices) > target_num_events:
-                selected_indices = np.random.choice(selected_indices, target_num_events, replace=False)
-            elif len(selected_indices) < target_num_events:
-                remaining_unselected_events = np.setdiff1d(np.arange(num_events), selected_indices)
-                additional_events = np.random.choice(
-                    remaining_unselected_events, target_num_events - len(selected_indices), replace=False
-                )
-                selected_indices.extend(additional_events)
-
-            # Set mask to True for selected events
-            keep_mask[selected_indices] = True
-
-
-        else:
-
-            # Select events by drawing uniform at random without replacement
-            selected_indices = np.random.choice(np.arange(num_events), target_num_events, replace=False)
-
-            # Set mask to True for selected events
-            keep_mask[selected_indices] = True
-
-        return keep_mask
-
-    # ### check_class_balance() ########################################################################################
     def check_class_balance(
             self,
             data_set: Literal['train', 'val', 'test', 'all'],
@@ -1335,7 +1023,7 @@ class FlowDataManager:
         else:
             raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
 
-        class_balance_df = FlowDataManager.check_class_balance_worker(
+        class_balance_df = self.check_class_balance_worker(
             data_list=data_list,
             label_key=label_key,
             label_layer_key=label_layer_key,
@@ -1355,7 +1043,7 @@ class FlowDataManager:
             verbosity: int = 1,
     ) -> pd.DataFrame:
         # Extract labels from data list
-        label_vec = FlowDataManager._get_numpy_label_vector(
+        label_vec = get_numpy_label_vector(
             data_list=data_list,
             label_key=label_key,
             layer_key=label_layer_key,
@@ -1443,7 +1131,6 @@ class FlowDataManager:
 
         return ax
 
-    # ### get_data_loader() ############################################################################################
     def get_data_loader(
             self,
             data_set: Literal['train', 'val', 'test', 'all'],
@@ -1502,7 +1189,7 @@ class FlowDataManager:
         else:
             raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
 
-        out = FlowDataManager.get_data_loader_worker(
+        out = self.get_data_loader_worker(
             data_list=data_list,
             channels=channels,
             layer_key=layer_key,
@@ -1553,7 +1240,7 @@ class FlowDataManager:
                 channels = list(range(data_list[0].n_vars))
 
         # Get single data matrix (concatenated from all samples)
-        data_array = FlowDataManager._get_numpy_data_matrix(
+        data_array = get_numpy_data_matrix(
             data_list=data_list,
             channels=channels,
             layer_key=layer_key,
@@ -1561,7 +1248,7 @@ class FlowDataManager:
 
         # Add labels as last columns of data matrix
         if label_key is not None:
-            label_array = FlowDataManager._get_numpy_label_vector(
+            label_array = get_numpy_label_vector(
                 data_list=data_list,
                 label_key=label_key,
                 layer_key=label_layer_key,
@@ -1616,88 +1303,6 @@ class FlowDataManager:
 
         return out
 
-    @staticmethod
-    def _get_numpy_data_matrix(
-            data_list: List[sc.AnnData],
-            channels: Union[List[int], List[str]],
-            layer_key: Union[str, None] = None,
-    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
-
-        # Get data matrix from each anndata in data_list
-        arrays = []
-        for adata in data_list:
-
-            if layer_key is None:
-                arrays.append(adata[:, channels].X.copy())
-            else:
-                arrays.append(adata[:, channels].layers[layer_key].copy())
-
-        # Concatenate to single data matrix
-        array = np.concatenate(arrays, axis=0)
-
-        return array
-
-    @staticmethod
-    def _get_numpy_label_vector(
-            data_list: List[sc.AnnData],
-            label_key: Union[int, str, None],
-            layer_key: Union[str, None] = None,
-            verbosity: int = 1,
-    ) -> np.ndarray:
-
-        # Get labels from each anndata in data_list
-        labels = []
-        for adata in data_list:
-
-            labels.append(
-                FlowDataManager._get_labels(
-                    adata=adata,
-                    label_key=label_key,
-                    layer_key=layer_key,
-                    verbosity=verbosity,
-                )
-            )
-
-        label_array = np.concatenate(labels, axis=0)
-
-        return label_array.astype(int)
-
-    @staticmethod
-    def _get_labels(
-            adata: sc.AnnData,
-            label_key: Union[str, int],
-            layer_key: Union[str, None] = None,
-            verbosity: int = 1,
-    ) -> np.ndarray:
-
-        # Label key is index of data matrix
-        if isinstance(label_key, int):
-            try:
-                if layer_key is None:
-                    labels = adata.X[:, label_key].copy()
-                else:
-                    labels = adata.layers[layer_key][:, label_key].copy()
-            except IndexError:
-                raise ValueError("'label_key' index is out of bounds in .X/.layers[layer_key] matrix")
-
-        # Label key is var name or obs key
-        else:
-            try:
-                label_idx = adata.var_names.get_loc(label_key)
-                if layer_key is None:
-                    labels = adata.X[:, label_idx].copy()
-                else:
-                    labels = adata.layers[layer_key][:, label_idx].copy()
-            except KeyError:
-                if verbosity >= 1:
-                    warnings.warn(f"'label_key' not found in .var_names, trying .obs")
-                try:
-                    labels = adata.obs[label_key].to_numpy().copy()
-                except KeyError:
-                    raise ValueError("'label_key' not found in .obs or .var_names")
-        return labels.astype(int)
-
-    # ### save_to_numpy_files() ########################################################################################
     def save_to_numpy_files(
             self,
             data_set: Literal['train', 'val', 'test', 'all'],
@@ -1753,7 +1358,7 @@ class FlowDataManager:
         else:
             raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
 
-        FlowDataManager.save_to_numpy_files_worker(
+        self.save_to_numpy_files_worker(
             data_list=data_list,
             sample_wise=sample_wise,
             save_path=save_path,
@@ -1921,7 +1526,7 @@ class FlowDataManager:
         else:
             raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
 
-        FlowDataManager.relabel_data_worker(
+        self.relabel_data_worker(
             data_list=data_list,
             old_to_new_label_mapping=old_to_new_label_mapping,
             label_key=label_key,
@@ -1947,7 +1552,7 @@ class FlowDataManager:
         for i, adata in enumerate(data_list):
 
             # Get labels (by column index, column name, obs key)
-            labels = FlowDataManager._get_labels(adata=adata, label_key=label_key, layer_key=label_layer_key)
+            labels = get_labels(adata=adata, label_key=label_key, layer_key=label_layer_key)
 
             # Map old to new labels
             labels_series = pd.Series(labels)

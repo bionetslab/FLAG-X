@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import scanpy as sc
 from pathlib import Path
 from flagx.io import FlowDataManager
+from flagx.io.io_utils import determine_filetype, log10_w_custom_cutoffs, compensate, get_labels
 
 
 # ------------------------------------------------------------
@@ -596,9 +597,9 @@ def test_relable_nonexistent_val_warns(fdm):
 # 10. Misc
 # ------------------------------------------------------------
 def test_determine_filetype():
-    assert FlowDataManager._determine_filetype('file.fcs') == 'fcs'
-    assert FlowDataManager._determine_filetype('file.csv') == 'csv'
-    assert FlowDataManager._determine_filetype('file.txt') == 'unknown'
+    assert determine_filetype('file.fcs') == 'fcs'
+    assert determine_filetype('file.csv') == 'csv'
+    assert determine_filetype('file.txt') == 'unknown'
 
 
 def test_init_invalid_data_file_names():
@@ -642,7 +643,7 @@ def test_custom_cutoff_missing_channel(fdm):
     cutoffs = {missing_channel: 50}
 
     with pytest.raises(IndexError):
-        FlowDataManager.log10_w_custom_cutoffs(adata, cutoffs)
+        log10_w_custom_cutoffs(adata, cutoffs)
 
 def test_data_split_invalid_sizes(fdm):
     fdm.load_data_files_to_anndata()
@@ -695,11 +696,11 @@ def test_get_labels_errors(fdm):
 
     # Out-of-bounds index
     with pytest.raises(ValueError):
-        FlowDataManager._get_labels(ad, label_key=999)
+        get_labels(ad, label_key=999)
 
     # Bad string label
     with pytest.raises(ValueError):
-        FlowDataManager._get_labels(ad, label_key='not_here')
+        get_labels(ad, label_key='not_here')
 
 def test_setters(fdm, tmp_path):
     new_dir = tmp_path / 'new'
@@ -795,7 +796,7 @@ def test_compensation_correctness():
         'spill': pd.DataFrame(spill, index=channels, columns=channels)
     }
     # Compensate
-    FlowDataManager.compensate(adata)
+    compensate(adata)
     # Check correctness
     assert np.allclose(adata.X, x_true, atol=1e-6)
 
@@ -814,7 +815,7 @@ def test_compensation_subset_channels():
     adata.uns['meta'] = {
         'spill': pd.DataFrame(spill, index=spill_channels, columns=spill_channels)
     }
-    FlowDataManager.compensate(adata)
+    compensate(adata)
 
     assert np.allclose(adata[:, ['A', 'B']].X, x_true[:, 2:], atol=1e-6)
     assert np.allclose(adata[:, ['FS', 'SS']].X, x_true[:, :2])
@@ -832,7 +833,7 @@ def test_compensation_channel_ordering():
     adata.uns['meta'] = {'spill': spill_df}
 
     # Should not crash or misalign
-    FlowDataManager.compensate(adata)
+    compensate(adata)
 
     assert adata.X.shape == x_true.shape
     assert np.allclose(adata.X, x_true, atol=1e-6)
@@ -848,7 +849,7 @@ def test_compensation_missing_channel_error():
     )
     adata.uns['meta'] = {'spill': spill}
     with pytest.raises(ValueError):
-        FlowDataManager.compensate(adata)
+        compensate(adata)
 
 def test_uncompensated_layer():
     x = np.random.rand(5, 2)
@@ -858,7 +859,7 @@ def test_uncompensated_layer():
     adata.uns['meta'] = {
         'spill': pd.DataFrame(np.eye(2), index=channels, columns=channels)
     }
-    FlowDataManager.compensate(
+    compensate(
         adata,
         uncompensated_layer_key='raw'
     )
@@ -900,7 +901,7 @@ def test_compensation_singular_matrix():
         'spill': pd.DataFrame(spill, index=channels, columns=channels)
     }
     with pytest.raises(Exception):
-        FlowDataManager.compensate(adata)
+        compensate(adata)
 
 def test_lmd_loading(tmp_path_factory):
 
