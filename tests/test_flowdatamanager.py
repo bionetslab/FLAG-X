@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
-import pytometry as pm
+import scanpy as sc
 from pathlib import Path
 from flagx.io import FlowDataManager
 
@@ -19,10 +19,6 @@ EXPECTED_CHANNELS = [
     'FL4 INT_CD33-PC5.5', 'FL5 INT_CD34-PC7', 'FL6 INT_CD117-APC',
     'FL7 INT_CD7-APC700', 'FL8 INT_CD16-APC750', 'FL9 INT_HLA-PB',
     'FL10 INT_CD45-KO', 'TIME', 'label'
-]
-COMPENSATION_CHANNELS = [
-    'FL1 INT_CD14-FITC', 'FL2 INT_CD19-PE', 'FL3 INT_CD13-ECD', 'FL4 INT_CD33-PC5.5', 'FL5 INT_CD34-PC7',
-    'FL6 INT_CD117-APC', 'FL7 INT_CD7-APC700', 'FL8 INT_CD16-APC750', 'FL9 INT_HLA-PB', 'FL10 INT_CD45-KO'
 ]
 N_CHANNELS = len(EXPECTED_CHANNELS)
 N_FILES = 5
@@ -778,76 +774,133 @@ def test_check_og_channel_names_warning():
 # ------------------------------------------------------------
 # 11. Compensation
 # ------------------------------------------------------------
-def test_compensation(fdm):
+def test_compensation_correctness():
+    # Define true signal X
+    x_true = np.array([
+        [10.0, 5.0],
+        [3.0, 2.0],
+    ])
+    # Define spill matrix S
+    spill = np.array([
+        [1.0, 0.1],
+        [0.0, 1.0],
+    ])
+    # Generate measured data Y = X * S
+    x_signal = (x_true @ spill)
+    # Create AnnData with spill matrix
+    channels = ['A', 'B']
+    adata = sc.AnnData(X=x_signal)
+    adata.var.index = channels
+    adata.uns['meta'] = {
+        'spill': pd.DataFrame(spill, index=channels, columns=channels)
+    }
+    # Compensate
+    FlowDataManager.compensate(adata)
+    # Check correctness
+    assert np.allclose(adata.X, x_true, atol=1e-6)
 
-    fdm.load_data_files_to_anndata()
-    fdm.anndata_list_ = fdm.anndata_list_[0:2]
+def test_compensation_subset_channels():
+    x_true = np.random.rand(5, 4)
+    channels = ['FS', 'SS', 'A', 'B']
+    spill = np.array([
+        [1.0, 0.2],
+        [0.0, 1.0],
+    ])
+    x_signal = x_true.copy()
+    x_signal[:, 2:] = x_signal[:, 2:] @ spill
+    adata = sc.AnnData(X=x_signal)
+    adata.var.index = channels
+    spill_channels = ['A', 'B']
+    adata.uns['meta'] = {
+        'spill': pd.DataFrame(spill, index=spill_channels, columns=spill_channels)
+    }
+    FlowDataManager.compensate(adata)
 
-    # Define dummy spillover matrix
-    spill = np.eye(len(COMPENSATION_CHANNELS))
-    spill[0, 1] = 0.05  # channel 1 spills 5% into channel 0
-    spill[1, 2] = 0.03  # channel 2 spills 3% into channel 1
-    spill[0, 2] = 0.02  # channel 1 spills 2% into channel 2
-    spill[6, 7] = 0.32  # channel 5 spills 32% into channel 6
-    spill_df = pd.DataFrame(spill, columns=COMPENSATION_CHANNELS, index=COMPENSATION_CHANNELS)
-    for adata in fdm.anndata_list_:
-        adata.uns['meta'] = dict()
-        adata.uns['meta']['spill'] = spill_df
+    assert np.allclose(adata[:, ['A', 'B']].X, x_true[:, 2:], atol=1e-6)
+    assert np.allclose(adata[:, ['FS', 'SS']].X, x_true[:, :2])
 
-    # Run compensation
-    fdm.sample_wise_compensation()
+def test_compensation_channel_ordering():
+    x_true = np.random.rand(5, 3)
+    channels = ['A', 'B', 'C']
+    x_signal = x_true.copy()
+    adata = sc.AnnData(X=x_signal)
+    adata.var.index = channels
 
-    # Check that log file exists
-    log_path = Path(fdm.save_path) / 'compensation_logs.csv'
-    assert log_path.exists()
-    logs = pd.read_csv(log_path, index_col=0)
-    assert logs.shape[0] == 2
-    assert set(logs['logs']) == {'compensation applied successfully'}
+    # Reorder cols of spill matrix
+    spill = np.eye(3)
+    spill_df = pd.DataFrame(spill, index=['C', 'A', 'B'], columns=['C', 'A', 'B'])
+    adata.uns['meta'] = {'spill': spill_df}
 
-    for adata in fdm.anndata_list_:
-        assert 'uncompensated' in adata.layers
-        assert 'original' not in adata.layers
-        assert not np.allclose(adata.X, adata.layers['uncompensated'])
+    # Should not crash or misalign
+    FlowDataManager.compensate(adata)
 
-def test_compensation_failure_for_one_sample(fdm, monkeypatch):
+    assert adata.X.shape == x_true.shape
+    assert np.allclose(adata.X, x_true, atol=1e-6)
 
-    fdm.load_data_files_to_anndata()
-    fdm.anndata_list_ = fdm.anndata_list_[0:2]
+def test_compensation_missing_channel_error():
+    x = np.random.rand(5, 3)
+    adata = sc.AnnData(X=x)
+    adata.var.index = ['A', 'B', 'C']
+    spill = pd.DataFrame(
+        np.eye(2),
+        index=['A', 'D'],   # D not in data
+        columns=['A', 'D']
+    )
+    adata.uns['meta'] = {'spill': spill}
+    with pytest.raises(ValueError):
+        FlowDataManager.compensate(adata)
 
-    # Save original method so the second call behaves normally
-    real_compensate = pm.pp.compensate
+def test_uncompensated_layer():
+    x = np.random.rand(5, 2)
+    channels = ['A', 'B']
+    adata = sc.AnnData(X=x.copy())
+    adata.var.index = channels
+    adata.uns['meta'] = {
+        'spill': pd.DataFrame(np.eye(2), index=channels, columns=channels)
+    }
+    FlowDataManager.compensate(
+        adata,
+        uncompensated_layer_key='raw'
+    )
+    assert 'raw' in adata.layers
+    assert np.allclose(adata.layers['raw'], x)
 
-    # Choose one AnnData to break
-    fail_adata = fdm.anndata_list_[0]
+def test_sample_wise_partial_failure(tmp_path):
+    adatas = []
+    for i in range(2):
+        x = np.random.rand(5, 2)
+        adata = sc.AnnData(X=x)
+        adata.var.index = ['A', 'B']
+        adata.uns['meta'] = {
+            'spill': pd.DataFrame(np.eye(2), index=['A', 'B'], columns=['A', 'B'])
+        }
+        adata.uns['filename'] = f'file_{i}'
+        adatas.append(adata)
 
-    def mock_compensate(adata, **kwargs):
-        if adata is fail_adata:
-            raise KeyError('xyz')
-        else:
-            return real_compensate(adata, **kwargs)
+    # break one
+    adatas[0].uns['meta']['spill'] = None
 
-    # Replace pytometry compensate with mock
-    monkeypatch.setattr(pm.pp, 'compensate', mock_compensate)
+    log_df = FlowDataManager.sample_wise_compensation_worker(adatas)
 
-    # Define dummy spillover matrix
-    spill = np.eye(len(COMPENSATION_CHANNELS))
-    spill[0, 1] = 0.05  # channel 1 spills 5% into channel 0
-    spill[1, 2] = 0.03  # channel 2 spills 3% into channel 1
-    spill[0, 2] = 0.02  # channel 1 spills 2% into channel 2
-    spill[6, 7] = 0.32  # channel 5 spills 32% into channel 6
-    spill_df = pd.DataFrame(spill, columns=COMPENSATION_CHANNELS, index=COMPENSATION_CHANNELS)
-    for adata in fdm.anndata_list_:
-        adata.uns['meta'] = dict()
-        adata.uns['meta']['spill'] = spill_df
+    assert log_df.shape[0] == 2
+    assert 'successfully' in log_df['logs'].iloc[1]
 
-    # Run
-    fdm.sample_wise_compensation()
+def test_compensation_singular_matrix():
+    x = np.random.rand(5, 2)
+    channels = ['A', 'B']
 
-    # Read logs
-    df = pd.read_csv(Path(fdm.save_path) / 'compensation_logs.csv', index_col=0)
-    assert len(df) == 2
-    assert 'xyz' in df['logs'].iloc[0]
-    assert df['logs'].iloc[1] == 'compensation applied successfully'
+    adata = sc.AnnData(X=x)
+    adata.var.index = channels
+    # singular matrix
+    spill = np.array([
+        [1.0, 1.0],
+        [1.0, 1.0],
+    ])
+    adata.uns['meta'] = {
+        'spill': pd.DataFrame(spill, index=channels, columns=channels)
+    }
+    with pytest.raises(Exception):
+        FlowDataManager.compensate(adata)
 
 def test_lmd_loading(tmp_path_factory):
 
@@ -866,8 +919,10 @@ def test_lmd_loading(tmp_path_factory):
 
     for adata in fdm_lmd.anndata_list_:
         assert adata.n_vars == 9
-        assert list(adata.var['channel']) == ['FS-H', 'FS-A', 'FS-W', 'SS-H', 'SS-A', 'SS-W', 'FL3-H', 'FL3-A', 'TIME']
-        assert list(adata.var_names) == ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+        assert list(adata.var['PnN']) == ['FS-H', 'FS-A', 'FS-W', 'SS-H', 'SS-A', 'SS-W', 'FL3-H', 'FL3-A', 'TIME']
+        assert list(adata.var_names) == ['FS-H', 'FS-A', 'FS-W', 'SS-H', 'SS-A', 'SS-W', 'FL3-H', 'FL3-A', 'TIME']
+        assert list(adata.uns['meta']['spill'].columns) == ['FL3-H', 'FL3-A']
+        assert list(adata.uns['meta']['spill'].index) == ['FL3-H', 'FL3-A']
         assert 'filename' in adata.uns
 
 

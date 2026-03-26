@@ -1,4 +1,5 @@
 
+import re
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -8,11 +9,11 @@ import copy
 import os
 import warnings
 import gc
-import tempfile
 import flowio
 
 from typing import Tuple, List, Dict, Union, Any
 from typing_extensions import Literal
+from readfcs import ReadFCS
 from sklearn.model_selection import train_test_split
 from matplotlib import colormaps
 
@@ -167,7 +168,11 @@ class FlowDataManager:
         self._verbosity = new_verbosity
 
     # ### load_data_files_to_anndata() #################################################################################
-    def load_data_files_to_anndata(self) -> None:
+    def load_data_files_to_anndata(
+            self,
+            reindex: bool = True,
+            fcs_version_lmd: Literal['3.1', '3.0', '2.0'] = '3.0'
+    ) -> None:
         """
         Load all provided data files into AnnData objects.
 
@@ -190,7 +195,7 @@ class FlowDataManager:
         if self._data_file_type is None:
             self._data_file_type = FlowDataManager._determine_filetype(filename=self._data_file_names[0])
 
-            if self._data_file_type == "unknown":
+            if self._data_file_type == 'unknown':
                 raise ValueError(f"Unsupported or unknown file type for {self._data_file_names[0]}. "
                                  f"Cannot use it as reference. Please remove it from 'data_filenames''")
 
@@ -213,29 +218,47 @@ class FlowDataManager:
                 continue
 
             # Load data file to anndata
-            if self._data_file_type == 'fcs':
-                adata = pm.io.read_fcs(os.path.join(self._data_file_path, fn))
-            elif self._data_file_type == 'csv':
-                df = pd.read_csv(os.path.join(self._data_file_path, fn), dtype=np.float32)
+            data_path = os.path.join(self._data_file_path, fn)
+            if self._data_file_type == 'csv':
+                df = pd.read_csv(data_path, dtype=np.float32)
                 adata = sc.AnnData(X=df.to_numpy())
                 adata.var_names = df.columns.copy()
-            else:  # data_file_type is lmd
+            elif self._data_file_type == 'fcs':
 
-                errors = {}
+                # Load fcs file using flowio
+                flowdata = flowio.read_multiple_data_sets(
+                    filename_or_handle=data_path,
+                    ignore_offset_error=False,
+                    ignore_offset_discrepancy=False,
+                    use_header_offsets=False,
+                    only_text=False,
+                )[0]
 
-                for v in ['3.1' ,'3.0', '2.0']:
-                    try:
-                        adata = FlowDataManager.lmd_to_anndata(
-                            filepath=self._data_file_path, filename=fn, fcs_version=v
-                        )
-                        break
-                    except Exception as e:
-                        errors[v] = str(e)
-                else:
-                    raise RuntimeError(
-                        'LMD file does not contain FCS3.1, FCS3.0, or FCS2.0 compliantportion. Errors:\n' +
-                        '\n'.join(f'  v{v}: {msg}' for v, msg in errors.items())
-                    )
+                # Convert from flowio.FlowData to AnnData
+                adata = self._flowdata_to_anndata(flowdata=flowdata, reindex=reindex)
+
+            else:  # data_file_type == 'lmd'
+
+                # Load fcs files contained in lmd with flowio
+                flowdatas = flowio.read_multiple_data_sets(
+                    filename_or_handle=data_path,
+                    ignore_offset_error=False,
+                    ignore_offset_discrepancy=False,
+                    use_header_offsets=False,
+                    only_text=False,
+                )
+
+                # Find the index of the correct FCS version
+                version_to_idx = dict()
+                for i, flowdata in enumerate(flowdatas):
+                    version_to_idx[flowdata.version] = i
+                if fcs_version_lmd not in version_to_idx:
+                    raise ValueError(f"File '{fn}' does not contain a FCS{fcs_version_lmd} compliant part. Try one of {list(version_to_idx.keys())}.")
+                load_idx = version_to_idx[fcs_version_lmd]
+                flowdata = flowdatas[load_idx]
+
+                # Convert from flowio.FlowData to AnnData
+                adata = self._flowdata_to_anndata(flowdata=flowdata, reindex=reindex)
 
             # Annotate filename in uns of anndata
             adata.uns['filename'] = fn
@@ -253,6 +276,157 @@ class FlowDataManager:
         else:
             data_file_type = "unknown"
         return data_file_type
+
+    @staticmethod
+    def _flowdata_to_anndata(flowdata: flowio.FlowData, reindex: bool = False) -> sc.AnnData:
+
+        # Extract data matrix
+        data_mat = np.reshape(flowdata.events, (-1, flowdata.channel_count)).astype(np.float32)
+
+        # Extract meta data
+        meta_data = flowdata.text
+
+        # Convert metadata into dataframe
+        meta_data_df = FlowDataManager._flowdata_meta_data_dict_to_df(meta_data_dict=meta_data)
+
+        # Extract spillover matrix if present
+        spillover_df = None
+        for key in ['spill', 'spillover']:
+            try:
+                spillover_str = meta_data[key]
+                spillover_df = FlowDataManager._spillover_mat_from_str(spillover_str=spillover_str)
+            except KeyError:
+                continue
+        if spillover_df is None:
+            warnings.warn('No spillover matrix found.')
+        else:
+            # By convention spillover matrix should be annotated with PnN
+            spill_cols = spillover_df.columns.tolist()
+            pnn = meta_data_df['PnN'].tolist()
+
+            if not set(spill_cols).issubset(set(pnn)):
+
+                warnings.warn('Spillover columns do not match PnN. Attempting to interpret as index-based encoding.')
+
+                if all(str(c).isdigit() for c in spill_cols):
+                    idx_to_pnn = {
+                        str(i): meta_data_df.loc[i, 'PnN']
+                        for i in meta_data_df.index
+                    }
+                    missing = set(spill_cols) - set(idx_to_pnn.keys())
+                    if not missing:
+                        spillover_df.rename(index=idx_to_pnn, columns=idx_to_pnn, inplace=True)
+                    else:
+                        raise ValueError('Cannot align Spillover matrix and other metadata.')
+                else:
+                    raise ValueError('Cannot align Spillover matrix and other metadata.')
+
+        # Build the AnnData
+        meta_data_df.index = meta_data_df['PnN']
+        meta_data['spill'] = spillover_df
+        adata = sc.AnnData(
+            X=data_mat,
+            var=meta_data_df,
+            uns={'meta': meta_data, 'fcs_version': flowdata.version},
+        )
+
+        if reindex:
+
+            if 'PnS' not in meta_data_df.columns:
+                warnings.warn('PnS not found. Cannot reindex.')
+            else:
+                pnn = meta_data_df['PnN']
+                pns = meta_data_df['PnS']
+
+                new_index = pns.where(pns != '', pnn)
+
+                if not new_index.is_unique:
+                    warnings.warn('PnS not unique. Cannot reindex.')
+                else:
+                    # Reindex var
+                    adata.var.index = new_index
+
+                    # Reindex spillover matrix
+                    if spillover_df is not None:
+                        mapper = dict(zip(pnn, new_index))
+                        spillover_df = spillover_df.rename(index=mapper, columns=mapper)
+                        adata.uns['meta']['spill'] = spillover_df
+
+        return adata
+
+    @staticmethod
+    def _flowdata_meta_data_dict_to_df(meta_data_dict: Dict[str, Any]) -> pd.DataFrame:
+
+        # Extract PnXYZ entries and store (n, value) tuples in dict
+        channel_groups = dict()
+        for key, val in meta_data_dict.items():
+
+            match = re.match(r'^p(\d+)([a-z]+)$', key.lower())
+            if not match:
+                continue
+
+            idx, suffix = int(match.group(1)), match.group(2)
+
+            group_key = f'Pn{suffix.upper()}'
+
+            channel_groups.setdefault(group_key, []).append((idx, val))
+
+        # Raise error if PnN is missing
+        if 'PnN' not in channel_groups:
+            raise ValueError('PnN (channel names) missing')
+
+        # Convert groups to dataframes and change dtype
+        dfs = []
+        for key, group in channel_groups.items():
+            df = pd.DataFrame(group, columns=['n', key]).set_index('n')
+
+            series = df[key]
+            numeric = pd.to_numeric(series, errors='coerce')  # Conversion fails -> Nan
+            if numeric.notna().all():  # Fully numeric -> distinguish int vs float
+                if (numeric % 1 == 0).all():
+                    df[key] = numeric.astype(int)
+                else:
+                    df[key] = numeric.astype(float)
+            else:
+                df[key] = series.astype(str)
+
+            dfs.append(df)
+
+        # Concatenate
+        df_groups = pd.concat(dfs, axis=1)
+
+        # Reorder
+        df_groups.insert(0, 'PnN', df_groups.pop('PnN'))
+        if 'PnS' in df_groups.columns:
+            df_groups.insert(1, 'PnS', df_groups.pop('PnS'))
+
+        # Replace NaN entries
+        df_groups.fillna('', inplace=True)
+
+        return df_groups
+
+    @staticmethod
+    def _spillover_mat_from_str(spillover_str: str) -> pd.DataFrame:
+
+        tokens = [t.strip().replace('\n', '') for t in spillover_str.split(',')]
+
+        num_channels = int(tokens[0])
+
+        expected_len = 1 + num_channels + num_channels * num_channels
+        if len(tokens) != expected_len:
+            raise ValueError('Malformed spillover string')
+
+        channels = tokens[1:num_channels + 1]
+
+        try:
+            values = list(map(float, tokens[num_channels + 1:]))
+        except ValueError:
+            raise ValueError('Spillover matrix contains non-numeric values')
+
+
+        so_mat = np.array(values).reshape((num_channels, num_channels))  # Reshape, order row mayor by default
+
+        return pd.DataFrame(so_mat, columns=channels, index=channels)
 
     # check_sample_sizes() #############################################################################################
     def check_sample_sizes(
@@ -501,35 +675,35 @@ class FlowDataManager:
                     print(f'# ### Channel: {i}, Name: {value_counts.index[0]} is consistent across samples\n')
 
     # ### sample_wise_compensation() ###################################################################################
-    def sample_wise_compensation(self, **compensation_kwargs) -> None:
+    def sample_wise_compensation(self) -> None:
         """
-        Apply fluorescence compensation to each sample in ``anndata_list_`` using Pytometry
+        Apply fluorescence compensation to each sample in ``anndata_list_``.
 
         Each AnnData object is compensated independently. An ``'uncompensated'`` layer is added containing a copy of the original expression matrix before compensation.
-        See: https://pytometry.netlify.app/pytometry.preprocessing.compensate#pytometry.preprocessing.compensate
-
-        Args:
-            **compensation_kwargs: Additional keyword arguments forwarded to ``pytometry.preprocessing.compensate``.
-
 
         Returns:
             None: The compensated data are written in place into ``anndata_list_`` and a dataframe with logs is saved to ``compensation_logs.csv``.
         """
 
         log_df = FlowDataManager.sample_wise_compensation_worker(
-            data_list=self.anndata_list_, inplace=True, **compensation_kwargs
+            data_list=self.anndata_list_,
+            spillover_key='spill',
+            inplace=True,
+            uncompensated_layer_key='uncompensated',
         )
 
         log_df.to_csv(os.path.join(self._save_path, 'compensation_logs.csv'))
 
     @staticmethod
-    def sample_wise_compensation_worker(data_list: List[sc.AnnData], inplace: bool = True, **kwargs) -> Union[Tuple[List[sc.AnnData], pd.DataFrame], pd.DataFrame]:
+    def sample_wise_compensation_worker(
+            data_list: List[sc.AnnData],
+            spillover_key: str = 'spill',
+            inplace: bool = True,
+            uncompensated_layer_key: Union[str, None] = None,
+    ) -> Union[Tuple[List[sc.AnnData], pd.DataFrame], pd.DataFrame]:
 
         if not inplace:
             data_list = [adata.copy() for adata in data_list]
-
-        # Force compensate() to run inplace
-        kwargs['inplace'] = True
 
         filenames = []
         compensation_logs = []
@@ -537,26 +711,60 @@ class FlowDataManager:
 
             filenames.append(adata.uns['filename'])
 
-            # Store uncompensated data in extra layer
-            adata.layers['uncompensated'] = adata.X.copy()
-
-            # Apply compensation
             try:
-                pm.pp.compensate(adata, **kwargs)
 
-                # Delete layer added by pytometry
-                if 'original' in adata.layers:
-                    del adata.layers['original']
+                FlowDataManager.compensate(
+                    adata=adata,
+                    spillover_key=spillover_key,
+                    uncompensated_layer_key=uncompensated_layer_key,
+                    inplace=True,
+                )
 
                 compensation_logs.append('compensation applied successfully')
 
             except Exception as e:
-
                 compensation_logs.append(str(e))
 
         compensation_log_df = pd.DataFrame({'filename': filenames, 'logs': compensation_logs})
 
         return compensation_log_df if inplace else (data_list, compensation_log_df)
+
+    @staticmethod
+    def compensate(
+            adata: sc.AnnData,
+            spillover_key: str = 'spill',
+            uncompensated_layer_key: Union[str, None] = None,
+            inplace: bool = True,
+    ) -> Union[sc.AnnData, None]:
+
+        if not inplace:
+            adata = adata.copy()
+
+        # Retrieve spillover matrix
+        so_mat_df = adata.uns['meta'][spillover_key]
+        so_mat = so_mat_df.to_numpy()
+
+        channels_so_mat = so_mat_df.columns.tolist()
+        channels_data = adata.var.index.tolist()
+        intersection = set(channels_so_mat) & set(channels_data)
+        if not len(intersection) == len(channels_so_mat):
+            raise ValueError('Index of the spillover matrix does not match data index.')
+
+        # Extract the data matrix to be compensated
+        data_mat_sub = np.asarray(adata[:, channels_so_mat].X)
+
+        # Compute the compensated data matrix
+        # S^T * X^T = Y^T with S = spillover mat, Y = measured data, X = "true" data; solve for X
+        data_mat_sub_compensated = np.linalg.solve(so_mat.T, data_mat_sub.T).T
+
+        # Store uncompensated data in extra layer
+        if uncompensated_layer_key is not None:
+            adata.layers[uncompensated_layer_key] = adata.X.copy()
+
+        # Replace data with compensated data
+        adata.X[:, [adata.var.index.get_loc(c) for c in channels_so_mat]] = data_mat_sub_compensated
+
+        return adata if not inplace else None
 
     # ### sample_wise_preprocessing() ##################################################################################
     def sample_wise_preprocessing(
@@ -1744,106 +1952,3 @@ class FlowDataManager:
             adata.obs[new_label_key] = new_labels
 
         return None if inplace else data_list
-
-    @staticmethod
-    def lmd_to_anndata(filepath: str, filename: str, fcs_version: str = '3.0') -> sc.AnnData:
-
-        """
-        Load embedded FCS2.0, FCS3.0, or FCS3.1 file from a Beckman Coulter ``.lmd`` file to an AnnData object.
-
-        Args:
-            filepath (str): Path to the .lmd file.
-            filename (str): Filename of the .lmd file.
-            fcs_version (str): Which FCS file to load. Must be  ``'2.0'``, ``'3.0'``, or ``'3.1'``. Defaults to ``'3.0'``.
-
-        Returns:
-            AnnData: AnnData object containing data from the selected FCS file .
-        """
-
-        if fcs_version not in {'2.0', '3.0', '3.1'}:
-            raise ValueError("'fcs_version' must be '2.0', '3.0', or '3.1'")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-
-            extracted = FlowDataManager.lmd_to_fcs(filepath=filepath, filename=filename, save_path=tmpdir)
-
-            key = f'FCS{fcs_version}'
-            temp_fcs_file_path = extracted[key]
-
-            adata = pm.io.read_fcs(temp_fcs_file_path, reindex=False)
-
-        return adata
-
-    @staticmethod
-    def lmd_to_fcs(filepath: str, filename: str, save_path: str) -> Dict[str, str]:
-        """
-        Extract embedded FCS2.0 and FCS3.0 or FCS3.1 files from a Beckman Coulter ``.lmd`` file.
-
-        Args:
-            filepath (str): Path to the .lmd file.
-            filename (str): Filename of the .lmd file.
-            save_path (str): Directory where extracted FCS files will be written.
-
-        Returns:
-            Dict: Dictionary containing FCS versions as keys and filepaths to saved FCS files as values. Resulting fcs files are saved to ``save_path``.
-        """
-
-        os.makedirs(save_path, exist_ok=True)
-
-        # Get filename without extension
-        basename = os.path.splitext(filename)[0]
-
-        # Load individual FCS files contained in LMD
-        lmd_path = os.path.join(filepath, filename)
-        fds = flowio.read_multiple_data_sets(lmd_path)
-
-        extracted = dict()
-        for fd in fds:
-
-            fcs_version = fd.version
-
-            fd = FlowDataManager._add_missing_pnn_pns_meta_data(flowdata=fd)
-
-            # Define filename and save to FCS
-            fcs_version_fn = fcs_version.replace('.', '_')
-            out_filename = f'{basename}_{fcs_version_fn}.fcs'
-            out_path = os.path.join(save_path, out_filename)
-            fd.write_fcs(out_path, metadata=None)
-
-            extracted[f'FCS{fcs_version}'] = out_path
-
-        return extracted
-
-    @staticmethod
-    def _add_missing_pnn_pns_meta_data(flowdata: flowio.FlowData) -> flowio.FlowData:
-
-        pnn_list = []
-        pns_list = []
-        for i in range(1, flowdata.channel_count + 1):
-
-            # Insert missing PnN values
-            if 'pnn' not in flowdata.channels[i] or flowdata.channels[i]['pnn'] == '':
-                name = f'channel-{i}'
-                # Update FlowData.channels
-                flowdata.channels[i]['pnn'] = name
-                # Update FlowData.text
-                flowdata.text[f'p{i}n'] = name
-                pnn_list.append(name)
-            else:
-                pnn_list.append(flowdata.channels[i]['pnn'])
-
-            # Insert missing PnS values
-            if 'pns' not in flowdata.channels[i] or flowdata.channels[i]['pns'] == '':
-                # Update FlowData.channels
-                flowdata.channels[i]['pns'] = flowdata.channels[i]['pnn']
-                # Update FlowData.text
-                flowdata.text[f'p{i}s'] = flowdata.channels[i]['pnn']
-                pns_list.append(flowdata.channels[i]['pnn'])
-            else:
-                pns_list.append(flowdata.channels[i]['pns'])
-
-        # Update FlowData.pnn_labels or FlowData.pns_labels
-        flowdata.pnn_labels = pnn_list
-        flowdata.pns_labels = pns_list
-
-        return flowdata
