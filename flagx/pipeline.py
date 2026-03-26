@@ -16,7 +16,7 @@ from typing_extensions import Literal
 
 from .io import FlowDataManager, export_to_fcs
 from .io.io_utils import get_numpy_data_matrix, get_numpy_label_vector
-from .gating import SomClassifier, MLPClassifier, TORCH_AVAILABLE as TORCH_AVAILABLE_GATING
+from .gating import SOMClassifier, MLPClassifier, TORCH_AVAILABLE as TORCH_AVAILABLE_GATING
 from .dimred import PCA, UMAP, TSNE, Isomap, LocallyLinearEmbedding, MDS, SpectralEmbedding
 
 
@@ -59,7 +59,7 @@ class GatingPipeline:
             - Multiclass case: If prediction certainty below threshold classifier abstains from making prediction. Event is marked with -1. Defaults to 0.0, i.e. no abstention.
         verbosity (int): Logging level.
         is_trained_ (bool): Whether the pipeline has been successfully trained.
-        gating_module_ (SomClassifier or MLPClassifier or None): The fitted gating model.
+        gating_module_ (SOMClassifier or MLPClassifier or None): The fitted gating model.
         binary_classes_ (bool or None): Whether the task is binary classification.
     """
     def __init__(
@@ -233,7 +233,7 @@ class GatingPipeline:
             self.gating_method_kwargs = {}
 
         if self.gating_method == 'som':
-            self.gating_module_ = SomClassifier(**self.gating_method_kwargs)
+            self.gating_module_ = SOMClassifier(**self.gating_method_kwargs)
         elif self.gating_method == 'mlp':
             if not TORCH_AVAILABLE_GATING:
                 raise ImportError(
@@ -732,7 +732,7 @@ class GatingPipeline:
 
                 # Ask gating module class to load normally
                 if pipeline.gating_method == 'som':
-                    pipeline.gating_module_ = SomClassifier.load(
+                    pipeline.gating_module_ = SOMClassifier.load(
                         filename='gating_module.pkl', filepath=tmpdir
                     )
                 elif pipeline.gating_method == 'mlp':

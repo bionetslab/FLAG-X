@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.exceptions import NotFittedError
 from pathlib import Path
 from flagx import GatingPipeline
-from flagx.gating import SomClassifier, MLPClassifier
+from flagx.gating import SOMClassifier, MLPClassifier
 
 
 TEST_DATA_DIR = Path(__file__).parent / 'test_data'
@@ -72,7 +72,7 @@ def test_train_creates_and_fits_classifier(pipeline_kwargs, gating_method,):
 
     assert pipe.is_trained_ is True
     assert pipe.gating_module_ is not None
-    assert isinstance(pipe.gating_module_, SomClassifier if gating_method == 'som' else MLPClassifier)
+    assert isinstance(pipe.gating_module_, SOMClassifier if gating_method == 'som' else MLPClassifier)
     assert hasattr(pipe.gating_module_, 'predict_proba')
     assert pipe.gating_module_.is_fitted_
     assert not pipe.binary_classes_
@@ -207,7 +207,7 @@ def test_save_and_load_pipeline_roundtrip(pipeline_kwargs, gating_method, test_f
     assert isinstance(pipe2, GatingPipeline)
     assert pipe2.is_trained_ is True
     assert pipe2.gating_method == pipe.gating_method
-    assert isinstance(pipe2.gating_module_, SomClassifier if gating_method == 'som' else MLPClassifier)
+    assert isinstance(pipe2.gating_module_, SOMClassifier if gating_method == 'som' else MLPClassifier)
 
     # Test inference with loaded pipeline
     output_dir = tmp_path / 'inference_after_loading'

@@ -1,7 +1,7 @@
 
 import warnings
 
-from .som_classifier import SomClassifier
+from .som_classifier import SOMClassifier
 
 try:
     from .mlp_classifier import MLPClassifier
@@ -17,6 +17,6 @@ except Exception as e:
     MLPClassifier = None
     FCNNModel = None
 
-__all__ = ['SomClassifier', 'MLPClassifier', 'FCNNModel', 'TORCH_AVAILABLE']
+__all__ = ['SOMClassifier', 'MLPClassifier', 'FCNNModel', 'TORCH_AVAILABLE']
 
 

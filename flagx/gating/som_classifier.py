@@ -18,7 +18,7 @@ from scipy.spatial.distance import cdist
 from numba import njit, prange
 
 
-class SomClassifier(BaseEstimator, ClassifierMixin):
+class SOMClassifier(BaseEstimator, ClassifierMixin):
     """
     Self-Organizing Map (SOM) classifier with scikit-learn–compatible API.
 
@@ -369,7 +369,7 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
         X, y = check_X_y(X, y)
 
         # Get labeled data from the input data
-        x_labeled, y_labeled = SomClassifier._get_labeled_data(
+        x_labeled, y_labeled = self._get_labeled_data(
             X=X,
             y=y,
             nan_val=self.unlabeled_label,
@@ -385,7 +385,7 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
             (
                 y_labeled, self.classes_, self.class_counts_, self.class_priors_, self.new_to_og_classes_dict_,
                 self.og_classes_
-            ) = SomClassifier._process_class_labels(y=y_labeled)
+            ) =self._process_class_labels(y=y_labeled)
 
             # ### Determine the majority class for all SOM units
             # Get BMUs for train data, shape n_events x 2 = som_coordinates
@@ -864,7 +864,7 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
             )
         else:
             # ### For larger dimension, compute Euclidean distances with numba parallelized loop
-            activation_map = SomClassifier._compute_distances(data, codebook_reshaped)
+            activation_map = self._compute_distances(data, codebook_reshaped)
 
         return activation_map
 
@@ -974,7 +974,7 @@ class SomClassifier(BaseEstimator, ClassifierMixin):
                 unit_counts['bmu1'], unit_counts['bmu2'], unit_counts['unit_id'], unit_counts['count'],
                 unit_counts['radius']
         ):
-            x, y = SomClassifier._random_points_on_sphere(x_center=bmu1, y_center=bmu2, radius=radius, n=count)
+            x, y = self._random_points_on_sphere(x_center=bmu1, y_center=bmu2, radius=radius, n=count)
             mask = bmus_df['unit_id'] == unit_id
             bmus_df.loc[mask, 'bmu1_scattered'] = x
             bmus_df.loc[mask, 'bmu2_scattered'] = y

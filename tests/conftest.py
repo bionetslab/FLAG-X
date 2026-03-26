@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 from pathlib import Path
-from flagx.gating import SomClassifier, MLPClassifier
+from flagx.gating import SOMClassifier, MLPClassifier
 from flagx.io import FlowDataManager
 
 
@@ -31,7 +31,7 @@ def small_y():
     ids=lambda p: f'dims={p["som_dimensions"]}'
 )
 def som_classifier(request):
-    return SomClassifier(
+    return SOMClassifier(
         som_dimensions=request.param['som_dimensions'],
         n_epochs=2,
         verbosity=0,
@@ -59,7 +59,7 @@ def large_y():
     ids=lambda p: f'dims={p["som_dimensions"]}'
 )
 def large_som_classifier(request):
-    return SomClassifier(
+    return SOMClassifier(
         som_dimensions=request.param['som_dimensions'],
         n_epochs=2,
         verbosity=0,
