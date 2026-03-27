@@ -240,7 +240,7 @@ class FlowDataManager:
                 )[0]
 
                 # Convert from flowio.FlowData to AnnData
-                adata = flowdata_to_anndata(flowdata=flowdata, reindex=reindex)
+                adata = flowdata_to_anndata(flowdata=flowdata, reindex=reindex, verbosity=self._verbosity)
 
             else:  # data_file_type == 'lmd'
 
@@ -263,7 +263,7 @@ class FlowDataManager:
                 flowdata = flowdatas[load_idx]
 
                 # Convert from flowio.FlowData to AnnData
-                adata = flowdata_to_anndata(flowdata=flowdata, reindex=reindex)
+                adata = flowdata_to_anndata(flowdata=flowdata, reindex=reindex, verbosity=self._verbosity)
 
             # Annotate filename in uns of anndata
             adata.uns['filename'] = fn

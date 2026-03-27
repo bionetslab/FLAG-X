@@ -21,7 +21,7 @@ def determine_filetype(filename: str) -> str:
     return data_file_type
 
 
-def flowdata_to_anndata(flowdata: flowio.FlowData, reindex: bool = False) -> sc.AnnData:
+def flowdata_to_anndata(flowdata: flowio.FlowData, reindex: bool = False, verbosity: int = 0) -> sc.AnnData:
 
     # Extract data matrix
     data_mat = np.reshape(flowdata.events, (-1, flowdata.channel_count)).astype(np.float32)
@@ -41,7 +41,8 @@ def flowdata_to_anndata(flowdata: flowio.FlowData, reindex: bool = False) -> sc.
         except KeyError:
             continue
     if spillover_df is None:
-        warnings.warn('No spillover matrix found.')
+        if verbosity >= 1:
+            warnings.warn('No spillover matrix found.')
     else:
         # By convention spillover matrix should be annotated with PnN
         spill_cols = spillover_df.columns.tolist()
@@ -49,7 +50,8 @@ def flowdata_to_anndata(flowdata: flowio.FlowData, reindex: bool = False) -> sc.
 
         if not set(spill_cols).issubset(set(pnn)):
 
-            warnings.warn('Spillover columns do not match PnN. Attempting to interpret as index-based encoding.')
+            if verbosity >= 1:
+                warnings.warn('Spillover columns do not match PnN. Attempting to interpret as index-based encoding.')
 
             if all(str(c).isdigit() for c in spill_cols):
                 idx_to_pnn = {
@@ -76,7 +78,8 @@ def flowdata_to_anndata(flowdata: flowio.FlowData, reindex: bool = False) -> sc.
     if reindex:
 
         if 'PnS' not in meta_data_df.columns:
-            warnings.warn('PnS not found. Cannot reindex.')
+            if verbosity >= 1:
+                warnings.warn('PnS not found. Cannot reindex.')
         else:
             pnn = meta_data_df['PnN']
             pns = meta_data_df['PnS']
@@ -84,7 +87,8 @@ def flowdata_to_anndata(flowdata: flowio.FlowData, reindex: bool = False) -> sc.
             new_index = pns.where(pns != '', pnn)
 
             if not new_index.is_unique:
-                warnings.warn('PnS not unique. Cannot reindex.')
+                if verbosity >= 1:
+                    warnings.warn('PnS not unique. Cannot reindex.')
             else:
                 # Reindex var
                 adata.var.index = new_index
