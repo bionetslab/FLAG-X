@@ -57,6 +57,7 @@ class FlowDataManager:
         anndata_list_ (list or None): List of loaded AnnData objects.
         sample_sizes_ (pd.DataFrame or None): Summary of sample sizes.
         og_channel_names_ (pd.DataFrame or None): Original channel names per file before alignment.
+        compensation_log_ (pd.DataFrame or None): Error log for compensation
         train_data_ (list or None): Train split as a list of AnnData objects.
         val_data_ (list or None): Validation split as a list of AnnData objects.
         test_data_ (list or None): Test split as a list of AnnData objects.
@@ -119,6 +120,9 @@ class FlowDataManager:
 
         # When align_channel_names() was called
         self.og_channel_names_ = None
+
+        # When sample_wise_compensation() was called
+        self.compensation_log_ = None
 
         # When perform_data_split() was called
         self.train_data_ = None
@@ -515,7 +519,7 @@ class FlowDataManager:
                     print(f'# ### Channel: {i}, Name: {value_counts.index[0]} is consistent across samples\n')
 
     # ### sample_wise_compensation() ###################################################################################
-    def sample_wise_compensation(self) -> None:
+    def sample_wise_compensation(self, filename_compensation_log: Union[str, None] = None,) -> None:
         """
         Apply fluorescence compensation to each sample in ``anndata_list_``.
 
@@ -532,7 +536,10 @@ class FlowDataManager:
             uncompensated_layer_key='uncompensated',
         )
 
-        log_df.to_csv(os.path.join(self._save_path, 'compensation_logs.csv'))
+        self.compensation_log_ = log_df.copy()
+
+        if filename_compensation_log is not None:
+            log_df.to_csv(os.path.join(self._save_path, 'compensation_log.csv'))
 
     @staticmethod
     def sample_wise_compensation_worker(
