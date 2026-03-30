@@ -140,14 +140,17 @@ def _flowdata_meta_data_dict_to_df(meta_data_dict: Dict[str, Any]) -> pd.DataFra
 
     # Concatenate
     df_groups = pd.concat(dfs, axis=1)
+    df_groups = df_groups.sort_index()
 
     # Reorder
     df_groups.insert(0, 'PnN', df_groups.pop('PnN'))
     if 'PnS' in df_groups.columns:
         df_groups.insert(1, 'PnS', df_groups.pop('PnS'))
 
-    # Replace NaN entries
-    df_groups.fillna('', inplace=True)
+    # Replace NaN entries in PnN and PnS columns
+    for col in ['PnN', 'PnS']:
+        if col in df_groups.columns:
+            df_groups[col] = df_groups[col].fillna('')
 
     return df_groups
 
