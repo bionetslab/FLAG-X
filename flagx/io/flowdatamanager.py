@@ -898,7 +898,7 @@ class FlowDataManager:
             label_key: Union[int, str, None] = None,
             # .obs key or varname or var index, if none is passed -> just data
             label_layer_key: Union[str, None] = None,
-    ) -> None:
+    ) -> List[np.ndarray]:
         """
         Downsample each sample in the specified dataset.
 
@@ -914,7 +914,7 @@ class FlowDataManager:
             label_layer_key (str or None): Layer name if labels are stored in a layer instead of ``.X``.
 
         Returns:
-            None
+            list[np.ndarray]: List of boolean arrays used for downsampling.
         """
 
         if data_set == 'all':
@@ -938,7 +938,7 @@ class FlowDataManager:
             raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
 
         # Downsample selected data list inplace, if og is to be kept use the worker
-        self.sample_wise_downsampling_worker(
+        ds_bools = self.sample_wise_downsampling_worker(
             data_list=data_list,
             target_num_events=target_num_events,
             stratified=stratified,
@@ -946,6 +946,8 @@ class FlowDataManager:
             label_layer_key=label_layer_key,
             inplace=True,
         )
+
+        return ds_bools
 
     @staticmethod
     def sample_wise_downsampling_worker(
@@ -956,7 +958,7 @@ class FlowDataManager:
             # .obs key or varname or var index, if none is passed -> just data
             label_layer_key: Union[str, None] = None,
             inplace: bool = False,
-    ) -> Union[List[sc.AnnData], None]:
+    ) -> Tuple[List[np.ndarray], Union[List[sc.AnnData], None]]:
 
         if target_num_events < 0:
             raise ValueError("'target_num_events' must be greater than 0")
@@ -970,6 +972,7 @@ class FlowDataManager:
         if not inplace:
             data_list = copy.deepcopy(data_list)
 
+        ds_bools = []
         for i, adata in enumerate(data_list):
             # If target_num_events is < 1 interpret as fraction
             tne = target_num_events if target_num_events >= 1 else round(adata.n_obs * target_num_events)
@@ -986,9 +989,13 @@ class FlowDataManager:
             )
             # Update data_list
             data_list[i] = adata[ds_bool, :].copy()
+            # Save downsampling bool
+            ds_bools.append(ds_bool)
 
-        if not inplace:
-            return data_list
+        if inplace:
+            return ds_bools, None
+        else:
+            return ds_bools, data_list
 
     def check_class_balance(
             self,
