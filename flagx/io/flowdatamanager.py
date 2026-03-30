@@ -181,7 +181,7 @@ class FlowDataManager:
         CSV files are read using Pandas. FCS and LMD files are parsed using the ``flowio`` Python package (https://github.com/whitews/FlowIO).
         If a spillover matrix is present in the TEXT section of the FCS file, it is extracted and stored in ``adata.uns['meta']['spill']``.
         For LMD files the loader looks for embedded FCS files and loads the one compliant with ``fcs_version_lmd``.
-        Invalid files are skipped and recorded.
+        The data filename is always stored in ``adata.uns['filename']``. Invalid files are skipped and recorded.
 
         Args:
             reindex (bool): Whether to reindex the AnnData.var and the spillover matrix with PnS. Defaults to True.
@@ -193,7 +193,7 @@ class FlowDataManager:
             UserWarning: When skipping incompatible file types.
 
         Returns:
-            None
+            None: Loaded data samples are stored as ``AnnData`` objects in ``anndata_list_``.
         """
         # Note: Fcd data is stored as float32 according to the Flow Cytometry Standard
         # - read_fcs() loads as float32
