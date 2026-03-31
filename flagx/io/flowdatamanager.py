@@ -1134,14 +1134,8 @@ class FlowDataManager:
         ax.set_ylim(0, y_max)
         for idx, (frac, count) in enumerate(zip(class_fracs, class_counts)):
             text = f'total: {count}, frac: {round(frac, 4)}'
-            text_offset = 0.05 * y_max
-            y_text = frac + text_offset
-            if y_text + 6 * text_offset > y_max:
-                ax.text(
-                    idx, y_text, text, ha='center', va='top', rotation=90)
-            else:
-                ax.text(
-                    idx, y_text, text, ha='center', va='bottom', rotation=90)
+            y_text = 0.05 * y_max
+            ax.text(idx, y_text, text, ha='center', va='bottom', rotation=90)
 
         return ax
 
