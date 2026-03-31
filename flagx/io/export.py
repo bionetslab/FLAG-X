@@ -97,7 +97,10 @@ def export_to_fcs(
                 add_columns_names.append('sample_id')
 
             sample_fn_id_df = pd.DataFrame({'filenames': fns, 'sample_id': range(1, len(fns) + 1)})
-            sample_fn_id_df.to_csv(os.path.join(save_path, 'filenames_and_sample_id.csv'), index=False)
+            sample_fn_id_df.to_csv(
+                os.path.join(save_path, f'{save_filenames[:-4]}_filenames_and_sample_id.csv'),
+                index=False
+            )
 
             if scale_columns is None:
                 scale_columns = ['sample_id', ]
