@@ -81,6 +81,12 @@ Users who require GPU acceleration must install a CUDA-enabled PyTorch build the
 ## Documentation
 Full documentation is available on [Read the Docs](https://flag-x.readthedocs.io/en/latest/).
 
+## Usage examples
+
+Usage examples for the FLAG-X workflows han be found
+- here: [Workflow unsupervised](https://github.com/bionetslab/FLAG-X/blob/main/notebooks/workflow_unsupervised.ipynb)
+- and here: [Workflow supervised](https://github.com/bionetslab/FLAG-X/blob/main/notebooks/workflow_supervised.ipynb)
+
 ## CLI usage example
 - Install `flagx`, see [Installation](#installation).
 - Create a *config.yml* for GatingPipeline initialization and model training according to `flagx.GatingPipeline`'s signature. 
