@@ -945,6 +945,7 @@ class FlowDataManager:
             label_key=label_key,
             label_layer_key=label_layer_key,
             inplace=True,
+            verbosity=self._verbosity,
         )
 
         return ds_bools
@@ -958,6 +959,7 @@ class FlowDataManager:
             # .obs key or varname or var index, if none is passed -> just data
             label_layer_key: Union[str, None] = None,
             inplace: bool = False,
+            verbosity: int = 0,
     ) -> Tuple[List[np.ndarray], Union[List[sc.AnnData], None]]:
 
         if target_num_events < 0:
@@ -978,7 +980,7 @@ class FlowDataManager:
             tne = target_num_events if target_num_events >= 1 else round(adata.n_obs * target_num_events)
             # Get labels or number of events
             if stratified:
-                y = get_labels(adata=adata, label_key=label_key, layer_key=label_layer_key)
+                y = get_labels(adata=adata, label_key=label_key, layer_key=label_layer_key, verbosity=verbosity)
             else:
                 y = None
             # Get bool indicating which events to keep
@@ -1043,6 +1045,7 @@ class FlowDataManager:
             label_layer_key=label_layer_key,
             save_path=self.save_path,
             filename_class_balance_df=filename_class_balance_df,
+            verbosity=self._verbosity,
         )
 
         return class_balance_df
@@ -1541,6 +1544,7 @@ class FlowDataManager:
             label_layer_key=label_layer_key,
             new_label_key=new_label_key,
             inplace=True,
+            verbosity=self._verbosity,
         )
 
     @staticmethod
@@ -1551,6 +1555,7 @@ class FlowDataManager:
             label_layer_key: Union[str, None] = None,
             new_label_key: str = 'new_labels',  # New labels always added to .obs, this way no conflict with prepr
             inplace: bool = False,
+            verbosity: int = 0,
     ) -> Union[List[sc.AnnData], None]:
 
         # Copy data_list if not inplace
@@ -1560,7 +1565,7 @@ class FlowDataManager:
         for i, adata in enumerate(data_list):
 
             # Get labels (by column index, column name, obs key)
-            labels = get_labels(adata=adata, label_key=label_key, layer_key=label_layer_key)
+            labels = get_labels(adata=adata, label_key=label_key, layer_key=label_layer_key, verbosity=verbosity)
 
             # Map old to new labels
             labels_series = pd.Series(labels)
