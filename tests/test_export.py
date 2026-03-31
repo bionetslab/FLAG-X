@@ -109,7 +109,7 @@ def test_export_to_fcs_creates_sample_id_csv(fdm, tmp_path):
         sample_wise=False,
     )
 
-    mapping_file = tmp_path / 'filenames_and_sample_id.csv'
+    mapping_file = tmp_path / 'all_samples_filenames_and_sample_id.csv'
     assert mapping_file.exists()
 
     df = pd.read_csv(mapping_file)
