@@ -25,7 +25,7 @@ class SOMClassifier(BaseEstimator, ClassifierMixin):
     This classifier uses Somoclu to train a 2D SOM grid in an unsupervised
     fashion and assigns class labels to SOM units by majority vote across labeled training samples.
     Predictions are computed using the best-matching unit (BMU) for each sample
-    and the majority class associated with that unit.
+    and the majority class associated with that <unit.
 
     The classifier supports:
         • Unsupervised SOM training
@@ -323,10 +323,12 @@ class SOMClassifier(BaseEstimator, ClassifierMixin):
             bmus = self._custom_get_bmus(activation_map=self._custom_get_surface_state(data=X))
 
             # Calculate the fraction of each class at each SOM unit
+            denominator = self.class_counts_per_unit_.sum(axis=2, keepdims=True)
             unit_wise_class_probabilities = np.divide(
                 self.class_counts_per_unit_,
-                self.class_counts_per_unit_.sum(axis=2, keepdims=True),
-                where=self.class_counts_per_unit_.sum(axis=2, keepdims=True) != 0
+                denominator,
+                out=np.zeros_like(self.class_counts_per_unit_, dtype=float),
+                where=denominator != 0
             )
 
             y_proba = unit_wise_class_probabilities[tuple(bmus[:, 0]), tuple(bmus[:, 1]), :]
