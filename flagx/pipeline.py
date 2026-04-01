@@ -473,7 +473,7 @@ class GatingPipeline:
         # Check the number of events per sample
         if save_meta_info:
             fdm.check_sample_sizes(filename_sample_sizes_df=f'{fn_prefix_saving}sample_sizes.csv')
-            fdm.plot_sample_size_df(sample_size_df=fdm.sample_sizes_, dpi=300)
+            fdm.plot_sample_size_df(sample_size_df=fdm.sample_sizes_)
             plt.tight_layout()
             plt.savefig(os.path.join(fdm.save_path, f'{fn_prefix_saving}sample_sizes.png'))
             plt.close('all')
@@ -511,7 +511,7 @@ class GatingPipeline:
                 label_layer_key=None,
                 filename_class_balance_df=f'{fn_prefix_saving}class_balance.csv',
             )
-            fdm.plot_class_balance_df(class_balance_df=cb_df, dpi=300)
+            fdm.plot_class_balance_df(class_balance_df=cb_df)
             plt.savefig(os.path.join(fdm.save_path, f'{fn_prefix_saving}class_balance.png'))
             plt.close('all')
 
