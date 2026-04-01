@@ -382,15 +382,22 @@ class FlowDataManager:
 
     def align_channel_names(
             self,
-            reference_channel_names: Union[int, dict, None] = None,
+            reference_channel_names: Union[int, dict] = 0,
             filename_log_df: Union[str, None] = None,
     ) -> None:
         """
-        Harmonize channel names across all samples by using a reference sample or a user-provided mapping.
+        Standardize channel names across all samples using either a reference sample or a user-provided mapping.
 
-        Channel names from each file are aligned so that all datasets have identical ``var_names``.
-        A log dataframe is stored to allow inspection of original channel names.
+        Channel names from each sample are aligned so that all ``AnnData`` objects share identical ``var_names``.
+        A log DataFrame is stored to retain the original channel names for inspection.
 
+        Assumptions:
+            1. All samples contain the same number of channels.
+            2. Channels appear in the same order across samples.
+
+        If assumption (1) is violated, a ``ValueError`` is raised.
+        Violations of assumption (2) cannot be detected automatically and may result in incorrectly assigned chanel names.
+        It is therefore recommended to verify both assumptions prior to calling this method.
         Args:
             reference_channel_names (int, dict, or None):
                 • int: index of the reference AnnData in ``anndata_list_``.
@@ -401,88 +408,66 @@ class FlowDataManager:
         Returns:
             None: Log dataframe stored in ``og_channel_names_``.
         """
-        log_df = self.align_channel_names_worker(
+        _, log_df = self.align_channel_names_worker(
             data_list=self.anndata_list_,  # Work on anndata_list
             reference=reference_channel_names,  # Int = idx of anndata_list or dict: {og_cn: new_cn}, None = 1st entry of list as reference
             inplace=True,  # Work inplace, change anndata_list
-            filename_log_df=filename_log_df,  # Filename for log df, None then no saving
-            save_path=self._save_path,  # Where to save log_df to
         )
         self.og_channel_names_ = log_df
         self.check_og_channel_names_df()
 
+        if filename_log_df is not None:
+            log_df.to_csv(os.path.join(self._save_path, filename_log_df), index=False)
+
     @staticmethod
     def align_channel_names_worker(
             data_list: List[sc.AnnData],
-            reference: Union[int, dict, None] = None,  # Either int for which file to use as reference or a
+            reference: Union[int, dict] = 0,  # Either int for which file to use as reference or a
             # dictionary with possible_name: reference_name
             inplace: bool = False,
-            filename_log_df: Union[str, None] = None,  # Filename for log df, None then no saving
-            save_path: Union[str, None] = None,  # Where to save log_df to, None then cwd
-    ) -> Union[Tuple[List[sc.AnnData], pd.DataFrame], pd.DataFrame]:
-        # ### Function to unify the channel names across multiple fcs data objects,
-        # assumes the same number of channels for all
+    ) -> Tuple[Union[List[sc.AnnData], None], pd.DataFrame]:
 
-        # ### Copy input if it should not be altered inplace
+        # Unify the channel names across multiple fcs data objects. Assumes:
+        # - same number of channels across samples
+        # - same order of channels across samples
+
+        # Copy input if it should not be altered inplace
         if not inplace:
             data_list = copy.deepcopy(data_list)
 
-        # ### If idx to reference anndata / file is passed use it to create list of reference channel names
-        if reference is None:
-            reference = 0
+        # Validate channel counts
+        n_vars = data_list[0].n_vars
+        if any(adata.n_vars != n_vars for adata in data_list):
+            raise ValueError('Number of channels inconsistent across samples in data_list.')
 
         if isinstance(reference, int):
             # Create list of channel names on the basis of selected AnnData object
-            reference = data_list[reference].var_names.values.tolist()
+            ref = data_list[reference].var_names.tolist()
+        else:
+            ref = copy.deepcopy(reference)
 
-        # ### Create dataframe to store the original channel names
-        log_df = pd.DataFrame(columns=['filename'] + list(range(1, data_list[0].n_vars + 1)))
-
-        # ### Iterate over individual fcs samples and change their channel names
+        # Iterate over individual fcs samples and change their channel names
+        rows = []
         for adata in data_list:
 
-            # Change channel names of AnnData object
-            _, log_df = FlowDataManager._align_channel_names_helper(
-                adata=adata,
-                reference=reference,
-                log_df=log_df
-            )
+            var_names_og = adata.var_names.tolist()
 
-            # Add filename key always exists in .uns since it is added in load_data_files_to_anndata()
-            log_df.loc[log_df.index[-1], 'filename'] = adata.uns['filename']
+            rows.append({
+                'filename': adata.uns['filename'],
+                **{str(i): vn for i, vn in enumerate(var_names_og, start=1)},
+            })
 
-        if save_path is None:
-            save_path = os.getcwd()
+            if isinstance(ref, list):
+                adata.var_names = ref
+            else:
+                adata.var_names = [ref.get(vn, vn) for vn in var_names_og]
 
-        if filename_log_df is not None:
-            log_df.to_csv(os.path.join(save_path, filename_log_df))
+        log_df = pd.DataFrame(rows)
 
-        if not inplace:
+        if inplace:
+            return None, log_df
+        else:
             return data_list, log_df
-        else:
-            return log_df
-
-    @staticmethod
-    def _align_channel_names_helper(
-            adata: sc.AnnData,
-            reference: Union[List[str], Dict],
-            log_df: pd.DataFrame
-    ) -> Tuple[sc.AnnData, pd.DataFrame]:
-
-        # Store original var_names to log_df
-        log_df.loc[len(log_df)] = [None] + adata.var_names.values.tolist()
-        # Store original var_names in separate .var annotation
-        adata.var['og_var_names'] = adata.var_names.values.copy()
-        if isinstance(reference, list):
-            # Replace var_names with list of reference var_names
-            adata.var_names = reference
-        else:
-            # Replace individual var_names with corresponding dict entries
-            new_var_names = [None] * adata.n_vars
-            for i, vn in enumerate(adata.var_names.values):
-                new_var_names[i] = reference[vn]
-            adata.var_names = new_var_names
-        return adata, log_df
 
     def check_og_channel_names_df(self) -> None:
         """

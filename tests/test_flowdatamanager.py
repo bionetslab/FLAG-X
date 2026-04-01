@@ -122,7 +122,7 @@ def test_align_channel_names(fdm):
         fdm.check_og_channel_names_df()
         fdm.verbosity = 0
 
-    log_df = pd.read_csv(Path(fdm.save_path) / 'channel_log.csv', index_col=0)
+    log_df = pd.read_csv(Path(fdm.save_path) / 'channel_log.csv')
     assert log_df.shape == (N_FILES, N_CHANNELS + 1)
 
     for adata in fdm.anndata_list_:
@@ -133,6 +133,13 @@ def test_align_channel_names(fdm):
     fdm.align_channel_names(reference_channel_names=custom_map)
     assert list(fdm.anndata_list_[0].var_names) == [f'ch{i}' for i in range(N_CHANNELS)]
 
+
+def test_align_channel_names_worker_raises():
+
+    data_list = [sc.AnnData(np.random.rand(6, 2)), sc.AnnData(np.random.rand(6, 3))]
+
+    with pytest.raises(ValueError, match='Number of channels inconsistent across samples in data_list.'):
+        FlowDataManager.align_channel_names_worker(data_list=data_list)
 
 # ------------------------------------------------------------
 # 4. Preprocessing
@@ -579,7 +586,7 @@ def test_relabel_data(fdm, dataset):
         assert 'relabeled' in adata.obs
         assert set(adata.obs['relabeled']).issubset(mapping.values())
 
-def test_relable_nonexistent_val_warns(fdm):
+def test_relabel_nonexistent_val_warns(fdm):
     fdm.verbosity = 1
     fdm.load_data_files_to_anndata()
     fdm.perform_data_split((0.6, 0.4))
