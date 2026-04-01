@@ -287,27 +287,28 @@ class FlowDataManager:
         Returns:
             None: Results stored in ``sample_sizes_``.
         """
-        self.sample_sizes_ = self.check_sample_sizes_worker(
+        sample_sizes_df = self.check_sample_sizes_worker(
             data_list=self.anndata_list_,
-            save_path=self._save_path,
-            filename_sample_sizes_df=filename_sample_sizes_df,
             verbosity=self._verbosity,
         )
+
+        self.sample_sizes_ = sample_sizes_df.copy()
+
+        if filename_sample_sizes_df is not None:
+            sample_sizes_df.to_csv(os.path.join(self._save_path, filename_sample_sizes_df), index=False)
 
     @staticmethod
     def check_sample_sizes_worker(
             data_list: List[sc.AnnData],
-            save_path: Union[str, None] = None,
-            filename_sample_sizes_df: Union[str, None] = None,
             verbosity: int = 0,
     ) -> pd.DataFrame:
 
         # ### Inspect the number of samples and their sample size
         sn = []
         ss = []
-        for fldata in data_list:
-            sn.append(fldata.uns['filename'])
-            ss.append(fldata.X.shape[0])
+        for adata in data_list:
+            sn.append(adata.uns['filename'])
+            ss.append(adata.n_obs)
 
         df = pd.DataFrame()
         df['sample'] = sn
@@ -322,21 +323,14 @@ class FlowDataManager:
         df.loc[len(df)] = ['mean', m]
         df.loc[len(df)] = ['total', s]
 
-        if save_path is None:
-            save_path = os.getcwd()
-
-        if filename_sample_sizes_df is not None:
-            df.to_csv(os.path.join(save_path, filename_sample_sizes_df))
-
         if verbosity >= 2:
-            print(f'# ### Sample sizes:\n{df}')
+            print(f'# Sample sizes:\n{df}')
 
         return df
 
     @staticmethod
     def plot_sample_size_df(
             sample_size_df: pd.DataFrame,
-            dpi: int = 100,
             ax: Union[plt.Axes, None] = None,
     ) -> plt.Axes:
         """
@@ -344,14 +338,13 @@ class FlowDataManager:
 
         Args:
             sample_size_df (pd.DataFrame): Output of ``check_sample_sizes_worker``.
-            dpi (int): Plot resolution if a new figure is created.
             ax (matplotlib.axes.Axes or None): Existing axes to plot into, or None to create new axes.
 
         Returns:
             matplotlib.axes.Axes: Axes containing the bar plot.
         """
         if ax is None:
-            fig, ax = plt.subplots(dpi=dpi)
+            fig, ax = plt.subplots(dpi=300)
 
         # Extract info from dataframe
         y_vals = sample_size_df.loc[~sample_size_df['sample'].isin(['mean', 'std', 'total']), 'n_events'].to_numpy()
@@ -413,7 +406,7 @@ class FlowDataManager:
             reference=reference_channel_names,  # Int = idx of anndata_list or dict: {og_cn: new_cn}, None = 1st entry of list as reference
             inplace=True,  # Work inplace, change anndata_list
         )
-        self.og_channel_names_ = log_df
+        self.og_channel_names_ = log_df.copy()
         self.check_og_channel_names_df()
 
         if filename_log_df is not None:
@@ -481,27 +474,27 @@ class FlowDataManager:
         """
         self.check_og_channel_names_df_worker(
             og_channel_names=self.og_channel_names_,
-            verbosity=self.verbosity
+            verbosity=self._verbosity
         )
 
     @staticmethod
     def check_og_channel_names_df_worker(og_channel_names: pd.DataFrame, verbosity: int = 1) -> None:
         for i, col in enumerate(og_channel_names.columns):
+
             if col == 'filename':
                 continue
 
             value_counts = og_channel_names[col].value_counts()
 
             if value_counts.size >= 2:
-                msg = f'# ### The channel names for channel {i} were not consistent across samples\n'
-                msg += f'# ### Channel: {i} ### #\n'
+                msg = f'# --- The channel names for channel {i} were not consistent across samples --- #\n'
                 for value, count in value_counts.items():
-                    msg += f'# ### Name: {value}, Count: {count}\n'
+                    msg += f'# --- Name: {value}, Count: {count}\n'
                 if verbosity >= 1:
                     warnings.warn(msg, UserWarning)
             else:
                 if verbosity >= 2:
-                    print(f'# ### Channel: {i}, Name: {value_counts.index[0]} is consistent across samples\n')
+                    print(f'# --- Channel: {i}, Name: {value_counts.index[0]} is consistent across samples --- #\n')
 
     # ### sample_wise_compensation() ###################################################################################
     def sample_wise_compensation(self, filename_compensation_log: Union[str, None] = None,) -> None:
@@ -668,8 +661,7 @@ class FlowDataManager:
             else:
                 trafo_fct(adata)
 
-        if not inplace:
-            return data_list
+        return data_list if not inplace else None
 
     def perform_data_split(
             self,
@@ -693,31 +685,37 @@ class FlowDataManager:
             None: Results stored in ``train_data_``, ``val_data_``, and ``test_data_``.
         """
 
-        dummy_data_split = self.perform_data_split_worker(
+        data_split, data_split_df = self.perform_data_split_worker(
             data_list=self.anndata_list_,
             data_split=data_split,
-            filename_data_split=filename_data_split,
-            save_path=self._save_path,
             verbosity=self._verbosity,
             **kwargs
         )
 
-        if len(dummy_data_split) == 2:
-            self.train_data_, self.test_data_ = dummy_data_split
+        if len(data_split) == 2:
+            self.train_data_, self.test_data_ = data_split
         else:
-            self.train_data_, self.val_data_, self.test_data_ = dummy_data_split
+            self.train_data_, self.val_data_, self.test_data_ = data_split
+
+        if filename_data_split is not None:
+            data_split_df.to_csv(os.path.join(self._save_path, filename_data_split), index=False)
+
 
     @staticmethod
     def perform_data_split_worker(
             data_list: List[sc.AnnData],
             data_split: Union[Tuple[float, float], Tuple[float, float, float], pd.DataFrame],
-            filename_data_split: Union[str, None] = None,
-            save_path: Union[str, None] = None,
             verbosity: int = 0,
             **kwargs  # kwargs for sklearn are: random_state, shuffle, stratify
-    ) -> Tuple[List[sc.AnnData], ...]:
+    ) -> Tuple[
+            Union[
+                Tuple[List[sc.AnnData], List[sc.AnnData]],
+                Tuple[List[sc.AnnData], List[sc.AnnData], List[sc.AnnData],]
+            ],
+            pd.DataFrame
+    ]:
 
-        # ### Split according to fractions passed as tuple
+        # Split according to fractions passed as tuple
         if not isinstance(data_split, pd.DataFrame):
             if len(data_split) not in {2, 3}:
                 raise ValueError(
@@ -726,9 +724,6 @@ class FlowDataManager:
             if not np.isclose(sum(data_split), 1.0) or any(x < 0 for x in data_split):
                 raise ValueError(
                     'The train-(val-)test-split must be passed as a tuple of non negative decimals that sum to one')
-
-            if filename_data_split is not None and save_path is None:
-                save_path = os.getcwd()
 
             if len(data_split) == 2:
                 # Split into train and test set
@@ -739,15 +734,10 @@ class FlowDataManager:
                     **kwargs
                 )
 
-                # Save data split to .csv (filename and train, test information)
-                if filename_data_split is not None:
-                    FlowDataManager._save_data_split_helper(
-                        data_tuple=(train_data, test_data),
-                        filename_data_split=filename_data_split,
-                        save_path=save_path,
-                    )
+                # Generate dataframe that stores the filename and train/val/test information
+                data_split_df = FlowDataManager._generate_data_split_df(data_tuple=(train_data, test_data))
 
-                return train_data, test_data
+                return (train_data, test_data), data_split_df
 
             else:
 
@@ -797,15 +787,10 @@ class FlowDataManager:
                         **kwargs
                     )
 
-                # Save data split to .csv (filename and train, val, test information)
-                if filename_data_split is not None:
-                    FlowDataManager._save_data_split_helper(
-                        data_tuple=(train_data, val_data, test_data),
-                        filename_data_split=filename_data_split,
-                        save_path=save_path,
-                    )
+                # Generate dataframe that stores the filename and train/val/test information
+                data_split_df = FlowDataManager._generate_data_split_df(data_tuple=(train_data, val_data, test_data))
 
-                return train_data, val_data, test_data
+                return (train_data, val_data, test_data), data_split_df
 
         # Split according to previously saved dataframe
         else:
@@ -830,17 +815,26 @@ class FlowDataManager:
 
             if len(val_data) == 0:
                 if verbosity >= 2:
-                    print('# ### The passed data_split dataframe did not include validation data')
-                return train_data, test_data
+                    print('# The passed data_split dataframe did not include validation data')
+
+                # Generate dataframe that stores the filename and train/val/test information
+                data_split_df = FlowDataManager._generate_data_split_df(data_tuple=(train_data, test_data))
+
+                return (train_data, test_data), data_split_df
             else:
-                return train_data, val_data, test_data
+
+                # Generate dataframe that stores the filename and train/val/test information
+                data_split_df = FlowDataManager._generate_data_split_df(data_tuple=(train_data, val_data, test_data))
+
+                return (train_data, val_data, test_data), data_split_df
 
     @staticmethod
-    def _save_data_split_helper(
-            data_tuple: Tuple[List[sc.AnnData], ...],
-            filename_data_split: Union[str, None] = None,
-            save_path: Union[str, None] = None,
-    ):
+    def _generate_data_split_df(
+            data_tuple: Union[
+                Tuple[List[sc.AnnData], List[sc.AnnData]],
+                Tuple[List[sc.AnnData], List[sc.AnnData], List[sc.AnnData],]
+            ],  # Expected order: train, val, test
+    ) -> pd.DataFrame:
 
         # Define modes based on the length of data_tuple
         mode_labels = ['train', 'val', 'test'] if len(data_tuple) == 3 else ['train', 'test']
@@ -859,7 +853,7 @@ class FlowDataManager:
             'mode': modes
         })
 
-        df.to_csv(os.path.join(save_path, filename_data_split))
+        return df
 
     @staticmethod
     def _check_data_split_df_format(data_split: pd.DataFrame):
@@ -902,28 +896,10 @@ class FlowDataManager:
             list[np.ndarray]: List of boolean arrays used for downsampling.
         """
 
-        if data_set == 'all':
-            data_list = self.anndata_list_
-        elif data_set == 'train':
-            data_list = self.train_data_
-        elif data_set == 'test':
-            data_list = self.test_data_
-        elif data_set == 'val':
-            data_list = self.val_data_
-
-            if data_list is None:
-                if self._verbosity >= 1:
-                    warnings.warn(
-                        'No validation set was created when splitting the data. '
-                        'Options are "train", "test", "all".',
-                        UserWarning
-                    )
-                return
-        else:
-            raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
+        data_list = self._retrieve_data_list(data_set=data_set)
 
         # Downsample selected data list inplace, if og is to be kept use the worker
-        ds_bools = self.sample_wise_downsampling_worker(
+        ds_bools, _ = self.sample_wise_downsampling_worker(
             data_list=data_list,
             target_num_events=target_num_events,
             stratified=stratified,
@@ -1004,34 +980,17 @@ class FlowDataManager:
             pd.DataFrame or None: Dataframe with columns ``'count'`` and ``'fraction'`` and labels in index. None if the specified subset does not exist.
         """
 
-        if data_set == 'all':
-            data_list = self.anndata_list_
-        elif data_set == 'train':
-            data_list = self.train_data_
-        elif data_set == 'test':
-            data_list = self.test_data_
-        elif data_set == 'val':
-            data_list = self.val_data_
-
-            if data_list is None:
-                if self._verbosity >= 1:
-                    warnings.warn(
-                        'No validation set was created when splitting the data. '
-                        'Options are "train", "test", "all". Returning None',
-                        UserWarning
-                    )
-                return
-        else:
-            raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
+        data_list = self._retrieve_data_list(data_set=data_set)
 
         class_balance_df = self.check_class_balance_worker(
             data_list=data_list,
             label_key=label_key,
             label_layer_key=label_layer_key,
-            save_path=self.save_path,
-            filename_class_balance_df=filename_class_balance_df,
             verbosity=self._verbosity,
         )
+
+        if filename_class_balance_df is not None:
+            class_balance_df.to_csv(os.path.join(self._save_path, filename_class_balance_df))
 
         return class_balance_df
 
@@ -1040,10 +999,9 @@ class FlowDataManager:
             data_list: List[sc.AnnData],
             label_key: Union[int, str],
             label_layer_key: Union[str, None] = None,
-            save_path: Union[str, None] = None,
-            filename_class_balance_df: Union[str, None] = None,
             verbosity: int = 1,
     ) -> pd.DataFrame:
+
         # Extract labels from data list
         label_vec = get_numpy_label_vector(
             data_list=data_list,
@@ -1061,8 +1019,8 @@ class FlowDataManager:
         class_fracs = class_fracs[sorted_indices]
 
         if verbosity >= 2:
-            print(f'# ### Absolute counts for the labels:\n{class_counts}')
-            print(f'# ### Relative frequencies for the labels:\n{class_fracs}')
+            print(f'# Absolute counts for the labels:\n{class_counts}')
+            print(f'# Relative frequencies for the labels:\n{class_fracs}')
 
         results_df = pd.DataFrame(
             {
@@ -1072,18 +1030,11 @@ class FlowDataManager:
             index=unique_labels.astype(int),
         ).T
 
-        if filename_class_balance_df is not None:
-            if save_path is None:
-                save_path = os.getcwd()
-
-            results_df.to_csv(os.path.join(save_path, filename_class_balance_df))
-
         return results_df
 
     @staticmethod
     def plot_class_balance_df(
             class_balance_df: pd.DataFrame,
-            dpi: int = 100,
             ax: Union[plt.Axes, None] = None,
     ) -> plt.Axes:
         """
@@ -1091,14 +1042,13 @@ class FlowDataManager:
 
         Args:
             class_balance_df (pd.DataFrame): Output from ``check_class_balance`` containing ``'count'`` and ``'fraction'`` and labels in index.
-            dpi (int): Resolution of the figure when creating a new plot.
             ax (Axes or None): Matplotlib axis to plot into. Creates a new figure if None.
 
         Returns:
             matplotlib.axes.Axes: The axis containing the plot.
         """
         if ax is None:
-            fig, ax = plt.subplots(dpi=dpi)
+            fig, ax = plt.subplots(dpi=300)
 
         num_classes = class_balance_df.shape[1]
 
@@ -1165,25 +1115,7 @@ class FlowDataManager:
                 The prepared dataloader, or None if the chosen subset is unavailable.
         """
 
-        if data_set == 'all':
-            data_list = self.anndata_list_
-        elif data_set == 'train':
-            data_list = self.train_data_
-        elif data_set == 'test':
-            data_list = self.test_data_
-        elif data_set == 'val':
-            data_list = self.val_data_
-
-            if data_list is None:
-                if self._verbosity >= 1:
-                    warnings.warn(
-                        'No validation set was created when splitting the data. '
-                        'Options are "train", "test", "all". Returning None.' ,
-                        UserWarning
-                    )
-                return
-        else:
-            raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
+        data_list = self._retrieve_data_list(data_set=data_set)
 
         out = self.get_data_loader_worker(
             data_list=data_list,
@@ -1334,25 +1266,7 @@ class FlowDataManager:
             None
         """
 
-        if data_set == 'all':
-            data_list = self.anndata_list_
-        elif data_set == 'train':
-            data_list = self.train_data_
-        elif data_set == 'test':
-            data_list = self.test_data_
-        elif data_set == 'val':
-            data_list = self.val_data_
-
-            if data_list is None:
-                if self._verbosity >= 1:
-                    warnings.warn(
-                        'No validation set was created when splitting the data. '
-                        'Options are "train", "test", "all".',
-                        UserWarning
-                    )
-                return
-        else:
-            raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
+        data_list = self._retrieve_data_list(data_set=data_set)
 
         self.save_to_numpy_files_worker(
             data_list=data_list,
@@ -1502,25 +1416,7 @@ class FlowDataManager:
             None
         """
 
-        if data_set == 'all':
-            data_list = self.anndata_list_
-        elif data_set == 'train':
-            data_list = self.train_data_
-        elif data_set == 'test':
-            data_list = self.test_data_
-        elif data_set == 'val':
-            data_list = self.val_data_
-
-            if data_list is None:
-                if self._verbosity >= 1:
-                    warnings.warn(
-                        'No validation set was created when splitting the data. '
-                        'Options are "train", "test", "all".',
-                        UserWarning
-                    )
-                return
-        else:
-            raise ValueError("'data_set' must be 'all', 'train', 'test' or 'val'")
+        data_list = self._retrieve_data_list(data_set=data_set)
 
         self.relabel_data_worker(
             data_list=data_list,
@@ -1560,3 +1456,40 @@ class FlowDataManager:
             adata.obs[new_label_key] = new_labels
 
         return None if inplace else data_list
+
+    def _retrieve_data_list(self, data_set: Literal['all', 'train', 'val', 'test']) -> List[sc.AnnData]:
+
+        if data_set == 'all':
+            data_list = self.anndata_list_
+            if data_list is None:
+                raise RuntimeError(
+                    "Data not loaded. Call load_data_files_to_anndata() first."
+                )
+        elif data_set == 'train':
+            data_list = self.train_data_
+            if data_list is None:
+                raise RuntimeError(
+                    "Training set not available. Call perform_data_split() first."
+                )
+        elif data_set == 'test':
+            data_list = self.test_data_
+            if data_list is None:
+                raise RuntimeError(
+                    "Test set not available. Call perform_data_split() first."
+                )
+        elif data_set == 'val':
+            data_list = self.val_data_
+
+            if data_list is None:
+                if self.train_data_ is None and self.test_data_ is None:
+                    raise RuntimeError(
+                        "Validation set not available. Call perform_data_split() first."
+                    )
+                else:
+                    raise RuntimeError(
+                        "Validation set not available. No validation set was created during splitting."
+                    )
+        else:
+            raise ValueError(f"data_set must be 'all', 'train', 'test' or 'val', got '{data_set}'.")
+
+        return data_list

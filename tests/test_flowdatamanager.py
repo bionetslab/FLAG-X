@@ -422,17 +422,6 @@ def test_get_data_loader_subsets(fdm, subset):
         assert dl is not None
 
 
-def test_get_data_loader_subset_val_warns(fdm):
-    fdm.load_data_files_to_anndata()
-    fdm.perform_data_split((0.6, 0.4))
-
-    fdm.verbosity = 1
-    with pytest.warns(UserWarning):
-        dl = fdm.get_data_loader('val', channels=[0, 1])
-
-    assert dl is None
-
-
 def test_invalid_dataset(fdm):
     with pytest.raises(ValueError):
         fdm.get_data_loader('invalid')
@@ -586,20 +575,6 @@ def test_relabel_data(fdm, dataset):
         assert 'relabeled' in adata.obs
         assert set(adata.obs['relabeled']).issubset(mapping.values())
 
-def test_relabel_nonexistent_val_warns(fdm):
-    fdm.verbosity = 1
-    fdm.load_data_files_to_anndata()
-    fdm.perform_data_split((0.6, 0.4))
-    fdm.align_channel_names(reference_channel_names=0)
-
-    mapping = {0: 9, 1: 10, 2: 11, 3: 12, 4: 13, 5: 14, }
-
-    with pytest.warns(UserWarning):
-        fdm.relabel_data('val',
-                         old_to_new_label_mapping=mapping,
-                         label_key='label',
-                         new_label_key='relabeled')
-
 # ------------------------------------------------------------
 # 10. Misc
 # ------------------------------------------------------------
@@ -690,12 +665,26 @@ def test_downsampling_invalid(fdm):
     with pytest.raises(ValueError):
         fdm.sample_wise_downsampling('xyz', 20)
 
-def test_downsampling_no_val_warns(fdm):
-    fdm.verbosity = 1
-    fdm.load_data_files_to_anndata()
+def test_retrieve_data_list_raises(fdm):
 
-    with pytest.warns(UserWarning):
-        fdm.sample_wise_downsampling('val', 20)
+    # No data loaded
+    with pytest.raises(RuntimeError, match='Data not loaded.'):
+        fdm._retrieve_data_list('all')
+
+    # No data not split
+    with pytest.raises(RuntimeError, match='Training set not available.'):
+        fdm._retrieve_data_list('train')
+    with pytest.raises(RuntimeError, match='Test set not available.'):
+        fdm._retrieve_data_list('test')
+    with pytest.raises(RuntimeError, match='Validation set not available. Call'):
+        fdm._retrieve_data_list('val')
+
+    # Split, but no val
+    fdm.train_data_ = [sc.AnnData(), ]
+    fdm.test_data_ = [sc.AnnData(), ]
+    with pytest.raises(RuntimeError, match='Validation set not available. No validation set was created during splitting.'):
+        fdm._retrieve_data_list('val')
+
 
 def test_get_labels_errors(fdm):
     fdm.load_data_files_to_anndata()
