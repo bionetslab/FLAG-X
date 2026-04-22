@@ -1,0 +1,11 @@
+filename,mode
+Case_1.csv,train
+Case_2.csv,train
+Case_3.csv,train
+Case_4.csv,train
+Case_5.csv,train
+Case_10.csv,test
+Case_6.csv,test
+Case_7.csv,test
+Case_8.csv,test
+Case_9.csv,test
