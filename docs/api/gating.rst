@@ -8,10 +8,10 @@ This module provides classification methods for automated flow cytometry gating.
    :no-members:
    :no-undoc-members:
 
-SomClassifier
+SOMClassifier
 --------------
 
-.. autoclass:: flagx.gating.SomClassifier
+.. autoclass:: flagx.gating.SOMClassifier
    :members:
    :no-undoc-members:
    :show-inheritance:
