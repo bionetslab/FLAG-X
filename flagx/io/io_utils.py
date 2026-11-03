@@ -227,7 +227,7 @@ def log10_w_cutoff(adata: sc.AnnData, cutoff: float = 100):
         None
     """
     x = adata.X
-    x = np.log10(x, out=np.full(x.shape, np.log(cutoff), dtype=float), where=(x > cutoff))
+    x = np.log10(x, out=np.full(x.shape, np.log10(cutoff), dtype=float), where=(x > cutoff))
     adata.X = x
 
 
